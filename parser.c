@@ -15,9 +15,18 @@ static void build_raw(MoveAST *out, const TokenList *tl) {
     for (size_t i = 0; i < tl->count; ++i) {
         const Token *t = &tl->items[i];
         if (t->type == TK_END) break;
-        // seguridad: asegurar no desbordamiento
         strncat(out->raw, t->text, sizeof(out->raw) - strlen(out->raw) - 1);
     }
+}
+
+// helper: asegura que el siguiente token sea TK_END; si no lo es devuelve error (-1)
+static int ensure_no_extra_tokens(const TokenList *tokens, size_t idx) {
+    const Token *rem = tok_at(tokens, idx);
+    if (rem && rem->type != TK_END) {
+        fprintf(stderr, "parse_move: token inesperado tras movimiento: '%s' (tipo %d)\n", rem->text, (int)rem->type);
+        return -1;
+    }
+    return 0;
 }
 
 int parse_move(const TokenList *tokens, MoveAST *out) {
@@ -38,18 +47,21 @@ int parse_move(const TokenList *tokens, MoveAST *out) {
         i++;
         // opcional + o #
         const Token *t2 = tok_at(tokens, i);
-        if (t2 && t2->type == TK_CHECK) out->is_check = 1, i++;
-        t2 = tok_at(tokens, i);
-        if (t2 && t2->type == TK_MATE) out->is_mate = 1, i++;
+        if (t2 && t2->type == TK_CHECK) { out->is_check = 1; i++; t2 = tok_at(tokens, i); }
+        if (t2 && t2->type == TK_MATE) { out->is_mate = 1; i++; }
+
+        // asegurar que no queden tokens extra
+        if (ensure_no_extra_tokens(tokens, i) != 0) return -1;
         return 0;
     }
     if (t->type == TK_CASTLE_SHORT) {
         out->is_castle_short = 1;
         i++;
         const Token *t2 = tok_at(tokens, i);
-        if (t2 && t2->type == TK_CHECK) out->is_check = 1, i++;
-        t2 = tok_at(tokens, i);
-        if (t2 && t2->type == TK_MATE) out->is_mate = 1, i++;
+        if (t2 && t2->type == TK_CHECK) { out->is_check = 1; i++; t2 = tok_at(tokens, i); }
+        if (t2 && t2->type == TK_MATE) { out->is_mate = 1; i++; }
+
+        if (ensure_no_extra_tokens(tokens, i) != 0) return -1;
         return 0;
     }
 
@@ -69,22 +81,23 @@ int parse_move(const TokenList *tokens, MoveAST *out) {
         const Token *a = tok_at(tokens, i);
         const Token *b = tok_at(tokens, i+1);
         const Token *c = tok_at(tokens, i+2);
+
         // patrones a considerar (prioridad):
-        // 1) FILE FILE RANK  -> src_file, dest_file, dest_rank
+        // 1) FILE FILE RANK  -> src_file, dest_file, dest_rank  (ej. Raxb1 -> a b 1)
         if (a && b && c && a->type == TK_FILE && b->type == TK_FILE && c->type == TK_RANK) {
             out->src_file = a->text[0];
             out->dest_file = b->text[0];
             out->dest_rank = c->text[0];
             i += 3;
         }
-        // 2) RANK FILE RANK -> src_rank, dest_file, dest_rank
+        // 2) RANK FILE RANK -> src_rank, dest_file, dest_rank (ej. N1c3)
         else if (a && b && c && a->type == TK_RANK && b->type == TK_FILE && c->type == TK_RANK) {
             out->src_rank = a->text[0];
             out->dest_file = b->text[0];
             out->dest_rank = c->text[0];
             i += 3;
         }
-        // 3) FILE CAPTURE FILE RANK -> src_file, capture, dest
+        // 3) FILE CAPTURE FILE RANK -> src_file, capture, dest (ej. Raxb1)
         else if (a && b && c && a->type == TK_FILE && b->type == TK_CAPTURE && c->type == TK_FILE && tok_at(tokens, i+3) && tok_at(tokens, i+3)->type == TK_RANK) {
             out->src_file = a->text[0];
             out->is_capture = 1;
@@ -92,7 +105,7 @@ int parse_move(const TokenList *tokens, MoveAST *out) {
             out->dest_rank = tok_at(tokens, i+3)->text[0];
             i += 4;
         }
-        // 4) CAPTURE FILE RANK -> capture + dest (sin desambiguación)
+        // 4) CAPTURE FILE RANK -> capture + dest (sin desambiguación) e.g. Nxd4
         else if (a && a->type == TK_CAPTURE && b && b->type == TK_FILE && c && c->type == TK_RANK) {
             out->is_capture = 1;
             out->dest_file = b->text[0];
@@ -105,14 +118,14 @@ int parse_move(const TokenList *tokens, MoveAST *out) {
             out->dest_rank = b->text[0];
             i += 2;
         }
-        // 6) cualquier otro caso: intentar cubrir captura con desambiguación de archivo antes del 'x'
+        // 6) Nfxe5 or similar: FILE CAPTURE FILE RANK (desambiguación antes de 'x')
         else if (a && b && a->type == TK_FILE && b->type == TK_CAPTURE) {
-            // caso: Nfxe5 -> a = file, b = 'x', c = file, d = rank
+            const Token *c2 = tok_at(tokens, i+2);
             const Token *d = tok_at(tokens, i+3);
-            if (c && c->type == TK_FILE && d && d->type == TK_RANK) {
+            if (c2 && c2->type == TK_FILE && d && d->type == TK_RANK) {
                 out->src_file = a->text[0];
                 out->is_capture = 1;
-                out->dest_file = c->text[0];
+                out->dest_file = c2->text[0];
                 out->dest_rank = d->text[0];
                 i += 4;
             } else {
@@ -132,16 +145,16 @@ int parse_move(const TokenList *tokens, MoveAST *out) {
             if (pp && pp->type == TK_PROMOTE_PIECE) {
                 out->promotion = pp->text[0];
                 i += 2;
-            } else {
-                // aceptamos '=' solo aunque sea extraño
-                i += 1;
-            }
+            } else { i += 1; }
         }
 
         // check / mate
         p = tok_at(tokens, i);
         if (p && p->type == TK_CHECK) { out->is_check = 1; i++; p = tok_at(tokens, i); }
         if (p && p->type == TK_MATE) { out->is_mate = 1; i++; }
+
+        // asegurar que no queden tokens inesperados
+        if (ensure_no_extra_tokens(tokens, i) != 0) return -1;
 
         return 0;
     } else {
@@ -183,16 +196,16 @@ int parse_move(const TokenList *tokens, MoveAST *out) {
             if (pp && pp->type == TK_PROMOTE_PIECE) {
                 out->promotion = pp->text[0];
                 i += 2;
-            } else {
-                // caso raro: solo '='
-                i += 1;
-            }
+            } else { i += 1; }
         }
 
         // check / mate
         p = tok_at(tokens, i);
         if (p && p->type == TK_CHECK) { out->is_check = 1; i++; p = tok_at(tokens, i); }
         if (p && p->type == TK_MATE) { out->is_mate = 1; i++; }
+
+        // asegurar que no queden tokens inesperados
+        if (ensure_no_extra_tokens(tokens, i) != 0) return -1;
 
         return 0;
     }
