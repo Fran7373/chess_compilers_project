@@ -37,6 +37,10 @@ typedef struct {
     int white_can_castle_long;
     int black_can_castle_short;
     int black_can_castle_long;
+
+    // Variable de en passant
+    int en_passant_file;
+    int en_passant_rank;
 } Board;
 
 

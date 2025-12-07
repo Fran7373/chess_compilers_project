@@ -71,6 +71,9 @@ void board_init_start(Board *b) {
     b->white_can_castle_long  = 1;
     b->black_can_castle_short = 1;
     b->black_can_castle_long  = 1;
+
+    b->en_passant_file = -1;
+    b->en_passant_rank = -1;
 }
 
 // Convierte el char de MoveAST.piece a enum PieceType
@@ -227,14 +230,36 @@ static int can_pawn_move(const Board *b,
 
     // Caso de captura
     if (is_capture) {
-        if ((d_rank != dir) || (d_file != 1 && d_file != -1)) { // valida movimiento diagonal
+        // Movimiento debe ser una casilla diagonal en la dirección correcta
+        if ((d_rank != dir) || (d_file != 1 && d_file != -1)) {
             return 0;
         }
-        if (dest->type == PIECE_NONE) { // Debe haber una pieza ahí
-            return 0;
-        }
-        if (dest->color == side_to_move) { // no puedes capturar propia
-            return 0;
+
+        const Piece *dest = &b->board[dr][df];
+
+        if (dest->type != PIECE_NONE) {
+            // Captura normal: debe haber pieza enemiga en destino
+            if (dest->color == side_to_move) { // no puedes capturar una pieza propia
+                return 0;
+            }
+        } else {
+            // Posible captura al paso: destino vacío
+            if (dr == b->en_passant_rank && df == b->en_passant_file) {
+                // Determinar la casilla donde está el peón enemigo que se captura al paso
+                int pawn_rank = (side_to_move == COLOR_WHITE) ? dr - 1 : dr + 1;
+                if (pawn_rank < 0 || pawn_rank > 7) {
+                    return 0;
+                }
+                const Piece *ep_pawn = &b->board[pawn_rank][df];
+                if (ep_pawn->type != PIECE_PAWN ||
+                    ep_pawn->color == side_to_move) {
+                    return 0;
+                }
+                // Es una captura al paso legal
+            } else {
+                // No hay pieza en destino y tampoco coincide con casilla de en passant
+                return 0;
+            }
         }
     // Movimiento normal
     } else {
@@ -262,11 +287,17 @@ static int can_pawn_move(const Board *b,
         }
     }
 
-    // Validar promoción
-    if (is_promotion_requested) {
-        if (dr != last_rank) { // solo se puede promover en la última fila
-            return 0; 
-        }
+    // Validar promoción (obligatoria y en la fila correcta)
+    int reaching_last_rank = (dr == last_rank);
+
+    // Si se pide promoción, debe llegar a la última fila
+    if (is_promotion_requested && !reaching_last_rank) {
+        return 0;
+    }
+
+    // Si llega a la última fila, la promoción es obligatoria
+    if (!is_promotion_requested && reaching_last_rank) {
+        return 0;
     }
 
     return 1;
@@ -294,38 +325,56 @@ static int find_pawn_source(const Board *b,
         return -1;
     }
 
-    int src_file_filter = -1;
-    int src_rank_filter = -1;
-
-    if (mv->src_file) {
-        src_file_filter = file_to_index(mv->src_file);
-    }
-    if (mv->src_rank) {
-        src_rank_filter = rank_to_index(mv->src_rank);
-    }
+    int src_file_filter = (mv->src_file) ? file_to_index(mv->src_file) : -1;
+    int src_rank_filter = (mv->src_rank) ? rank_to_index(mv->src_rank) : -1;
 
     int is_promotion_requested = (mv->promotion != 0); // 1 si hay promoción
 
     int found = 0; // contador de candidatos encontrados
     int best_sr = -1, best_sf = -1; // mejores candidatos
 
+    // Recorremos todos los peones del jugador
     for (int r = 0; r < 8; ++r) {
         for (int f = 0; f < 8; ++f) {
+
             const Piece *p = &b->board[r][f];
+            if (p->type != PIECE_PAWN || p->color != side_to_move)
+                continue;
 
-            if (p->type != PIECE_PAWN) continue;
-            if (p->color != side_to_move) continue;
+            // Filtro por desambiguación 
+            if (src_file_filter != -1 && f != src_file_filter)
+                continue;
+            if (src_rank_filter != -1 && r != src_rank_filter)
+                continue;
 
-            if (src_file_filter != -1 && f != src_file_filter) continue;
-            if (src_rank_filter != -1 && r != src_rank_filter) continue;
+            // CAPTURA AL PASO
+            if (mv->is_capture &&
+                b->en_passant_file == df &&
+                b->en_passant_rank == dr)
+            {
+                int dir = (side_to_move == COLOR_WHITE) ? 1 : -1;
 
-            // valida si este peón puede moverse al destino
+                // Un peón que está en columna adyacente y en la fila correcta
+                if (r == dr - dir && (f == df + 1 || f == df - 1)) {
+
+                    // Confirmar que detrás del destino hay peón enemigo
+                    int pawn_rank = dr - dir;
+                    const Piece *ep = &b->board[pawn_rank][df];
+
+                    if (ep->type == PIECE_PAWN && ep->color != side_to_move) {
+                        *out_sr = r;
+                        *out_sf = f;
+                        return 0; // origen encontrado
+                    }
+                }
+            }
+
+            // MOVIMIENTOS NORMALES O CAPTURA NORMAL 
             if (!can_pawn_move(b, r, f, dr, df,
                                mv->is_capture,
                                side_to_move,
-                               is_promotion_requested)) {
+                               is_promotion_requested))
                 continue;
-            }
 
             found++;
             best_sr = r;
@@ -611,6 +660,382 @@ static int find_queen_source(const Board *b,
     return 0;
 }
 
+// Valida el movimiento de un rey
+// 1 = válido
+// 0 = inválido
+static int can_king_move(const Board *b,
+                         int sr, int sf,
+                         int dr, int df,
+                         int is_capture,
+                         Color side)
+{
+    int d_rank = dr - sr;
+    int d_file = df - sf;
+    if (d_rank < 0) d_rank = -d_rank;
+    if (d_file < 0) d_file = -d_file;
+
+    // Rey debe moverse 1 casilla como máximo en cada eje (sin enroque)
+    if (d_rank > 1 || d_file > 1 || (d_rank == 0 && d_file == 0)) {
+        return 0;
+    }
+
+    const Piece *dest = &b->board[dr][df];
+
+    if (is_capture) {
+        if (dest->type == PIECE_NONE) return 0;
+        if (dest->color == side) return 0;
+    } else {
+        if (dest->type != PIECE_NONE) return 0;
+    }
+
+    return 1;
+}
+
+// Valida si la casilla (r,f) está atacada por el bando 'by_side'
+// 1 = está atacada
+// 0 = no está atacada
+static int is_square_attacked(const Board *b, int r, int f, Color by_side)
+{
+    if (!b) return 0;
+
+    Color enemy = by_side;
+
+    // 1) Ataques de peones
+    if (enemy == COLOR_WHITE) {
+        // Peón blanco ataca (r+1, f-1) y (r+1, f+1)
+        int pr = r - 1;
+        if (pr >= 0) {
+            if (f - 1 >= 0) {
+                const Piece *p = &b->board[pr][f-1];
+                if (p->color == COLOR_WHITE && p->type == PIECE_PAWN) return 1;
+            }
+            if (f + 1 < 8) {
+                const Piece *p = &b->board[pr][f+1];
+                if (p->color == COLOR_WHITE && p->type == PIECE_PAWN) return 1;
+            }
+        }
+    } else if (enemy == COLOR_BLACK) {
+        // Peón negro ataca (r-1, f-1) y (r-1, f+1)
+        int pr = r + 1;
+        if (pr < 8) {
+            if (f - 1 >= 0) {
+                const Piece *p = &b->board[pr][f-1];
+                if (p->color == COLOR_BLACK && p->type == PIECE_PAWN) return 1;
+            }
+            if (f + 1 < 8) {
+                const Piece *p = &b->board[pr][f+1];
+                if (p->color == COLOR_BLACK && p->type == PIECE_PAWN) return 1;
+            }
+        }
+    }
+
+    // 2) Ataques de caballos 
+    const int knight_moves[8][2] = {
+        { 2, 1}, { 2,-1}, {-2, 1}, {-2,-1},
+        { 1, 2}, { 1,-2}, {-1, 2}, {-1,-2}
+    };
+    // Recorre los posibles movimientos del caballo
+    for (int k = 0; k < 8; ++k) {
+        int rr = r + knight_moves[k][0];
+        int ff = f + knight_moves[k][1];
+        if (rr < 0 || rr >= 8 || ff < 0 || ff >= 8) continue;
+        const Piece *p = &b->board[rr][ff];
+        if (p->color == enemy && p->type == PIECE_KNIGHT) return 1;
+    }
+
+    // 3) Ataques en líneas rectas (torres y damas)
+    const int dirs_straight[4][2] = {
+        { 1, 0}, {-1, 0}, { 0, 1}, { 0,-1}
+    };
+    // Recorre las 4 direcciones rectas
+    for (int d = 0; d < 4; ++d) {
+        int dr = dirs_straight[d][0];
+        int df = dirs_straight[d][1];
+        int rr = r + dr;
+        int ff = f + df;
+        // Avanza en esa dirección hasta que se salga del tablero o encuentre una pieza
+        while (rr >= 0 && rr < 8 && ff >= 0 && ff < 8) {
+            const Piece *p = &b->board[rr][ff];
+            if (p->type != PIECE_NONE) {
+                if (p->color == enemy &&
+                    (p->type == PIECE_ROOK || p->type == PIECE_QUEEN)) {
+                    return 1;
+                }
+                break; // pieza bloquea el ataque
+            }
+            rr += dr;
+            ff += df;
+        }
+    }
+
+    // 4) Ataques en diagonales (alfiles y damas)
+    const int dirs_diag[4][2] = {
+        { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1}
+    };
+    // Recorre las 4 direcciones diagonales
+    for (int d = 0; d < 4; ++d) {
+        int dr = dirs_diag[d][0];
+        int df = dirs_diag[d][1];
+        int rr = r + dr;
+        int ff = f + df;
+        // Avanza en esa dirección hasta que se salga del tablero o encuentre una pieza
+        while (rr >= 0 && rr < 8 && ff >= 0 && ff < 8) {
+            const Piece *p = &b->board[rr][ff];
+            if (p->type != PIECE_NONE) {
+                if (p->color == enemy &&
+                    (p->type == PIECE_BISHOP || p->type == PIECE_QUEEN)) {
+                    return 1;
+                }
+                break;
+            }
+            rr += dr;
+            ff += df;
+        }
+    }
+
+    // 5) Ataques del rey enemigo 
+    for (int dr = -1; dr <= 1; ++dr) {
+        for (int df = -1; df <= 1; ++df) {
+            if (dr == 0 && df == 0) continue;
+            int rr = r + dr;
+            int ff = f + df;
+            if (rr < 0 || rr >= 8 || ff < 0 || ff >= 8) continue;
+            const Piece *p = &b->board[rr][ff];
+            if (p->color == enemy && p->type == PIECE_KING) {
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+// Verifica si el rey del bando del color 'side' está en jaque
+// 1 = en jaque
+// 0 = no en jaque
+static int is_king_in_check(const Board *b, Color side)
+{
+    if (!b || side == COLOR_NONE) return 0;
+
+    int king_r = -1, king_f = -1;
+
+    // Buscar al rey de 'side' en el tablero
+    for (int r = 0; r < 8; ++r) {
+        for (int f = 0; f < 8; ++f) {
+            const Piece *p = &b->board[r][f];
+            if (p->color == side && p->type == PIECE_KING) {
+                king_r = r;
+                king_f = f;
+                break;
+            }
+        }
+        if (king_r != -1) break;
+    }
+
+    if (king_r == -1) {
+        // Posición ilegal (no hay rey), pero por ahora devolvemos "no en jaque"
+        return 0;
+    }
+
+    Color enemy = (side == COLOR_WHITE) ? COLOR_BLACK : COLOR_WHITE;
+    return is_square_attacked(b, king_r, king_f, enemy);
+}
+
+// Actualiza los derechos de enroque cuando una pieza de 'side' se mueve
+static void update_castling_rights_on_move(Board *b,
+                                           Color side,
+                                           PieceType pt,
+                                           int sr, int sf)
+{
+    if (!b) return;
+
+    if (side == COLOR_WHITE) {
+        if (pt == PIECE_KING) { // Si el rey se mueve pierde ambos enroques
+            b->white_can_castle_short = 0;
+            b->white_can_castle_long  = 0;
+        } else if (pt == PIECE_ROOK && sr == 0) { // Se mueve torre blanca
+            if (sf == 0) {          // Torre de a1
+                b->white_can_castle_long = 0;
+            } else if (sf == 7) {   // Torre de h1
+                b->white_can_castle_short = 0;
+            }
+        }
+    } else if (side == COLOR_BLACK) {
+        if (pt == PIECE_KING) { // Si el rey se mueve pierde ambos enroques
+            b->black_can_castle_short = 0;
+            b->black_can_castle_long  = 0;
+        } else if (pt == PIECE_ROOK && sr == 7) { // Se mueve torre negra
+            if (sf == 0) {          // Torre de a8
+                b->black_can_castle_long = 0;
+            } else if (sf == 7) {   // Torre de h8
+                b->black_can_castle_short = 0;
+            }
+        }
+    }
+}
+
+// Actualiza los derechos de enroque cuando se captura una torre
+static void update_castling_rights_on_capture(Board *b,
+                                              const Piece *captured,
+                                              int dr, int df)
+{
+    if (!b || !captured) return;
+    if (captured->type != PIECE_ROOK) return;
+
+    if (captured->color == COLOR_WHITE && dr == 0) { // Torre blanca capturada en fila 1
+        if (df == 0) {  // a1
+            b->white_can_castle_long = 0;
+        } else if (df == 7) {  // h1
+            b->white_can_castle_short = 0;
+        }
+    } else if (captured->color == COLOR_BLACK && dr == 7) { // Torre negra capturada en fila 8
+        if (df == 0) {  // a8
+            b->black_can_castle_long = 0;
+        } else if (df == 7) {  // h8
+            b->black_can_castle_short = 0;
+        }
+    }
+}
+
+
+// Aplica el movimiento de enroque al tablero 'b'.
+// 0 = éxito
+// -1 = error
+static int apply_castling(Board *b,
+                          const MoveAST *mv,
+                          Color side,
+                          char *err,
+                          size_t err_sz)
+{
+    if (!b || !mv) {
+        snprintf(err, err_sz, "Argumentos nulos en apply_castling");
+        return -1;
+    }
+
+    Color enemy = (side == COLOR_WHITE) ? COLOR_BLACK : COLOR_WHITE;
+
+    int king_rank, king_file_start;
+    int rook_file_start, king_file_end, rook_file_end;
+
+    // Determinar filas y columnas según el color
+    if (side == COLOR_WHITE) {
+        // Posición inicial del rey
+        king_rank = 0;
+        king_file_start = 4;
+        // Determinar si es enroque corto o largo
+        if (mv->is_castle_short) {
+            if (!b->white_can_castle_short) {
+                snprintf(err, err_sz, "Blanco no tiene derecho a enroque corto.");
+                return -1;
+            }
+            rook_file_start = 7; // h
+            king_file_end = 6;   // g
+            rook_file_end = 5;   // f
+        } else {
+            if (!b->white_can_castle_long) {
+                snprintf(err, err_sz, "Blanco no tiene derecho a enroque largo.");
+                return -1;
+            }
+            rook_file_start = 0; // a
+            king_file_end = 2;   // c
+            rook_file_end = 3;   // d
+        }
+    // Color negro
+    } else {
+        king_rank = 7;
+        king_file_start = 4;
+        if (mv->is_castle_short) {
+            if (!b->black_can_castle_short) {
+                snprintf(err, err_sz, "Negro no tiene derecho a enroque corto.");
+                return -1;
+            }
+            rook_file_start = 7; // h
+            king_file_end = 6;   // g
+            rook_file_end = 5;   // f
+        } else {
+            if (!b->black_can_castle_long) {
+                snprintf(err, err_sz, "Negro no tiene derecho a enroque largo.");
+                return -1;
+            }
+            rook_file_start = 0; // a
+            king_file_end = 2;   // c
+            rook_file_end = 3;   // d
+        }
+    }
+
+    // Verificar que haya rey y torre correctos
+    Piece *king = &b->board[king_rank][king_file_start];
+    Piece *rook = &b->board[king_rank][rook_file_start];
+
+    if (king->type != PIECE_KING || king->color != side) {
+        snprintf(err, err_sz, "No hay rey correcto en su casilla inicial para enrocar.");
+        return -1;
+    }
+    if (rook->type != PIECE_ROOK || rook->color != side) {
+        snprintf(err, err_sz, "No hay torre correcta en su casilla inicial para enrocar.");
+        return -1;
+    }
+
+    // 1) El rey no debe estar en jaque antes del enroque
+    if (is_king_in_check(b, side)) {
+        snprintf(err, err_sz, "No puedes enrocar estando en jaque.");
+        return -1;
+    }
+
+    // 2) Las casillas entre rey y torre deben estar vacías
+    int step = (rook_file_start > king_file_start) ? 1 : -1;
+    for (int f = king_file_start + step; f != rook_file_start; f += step) {
+        if (b->board[king_rank][f].type != PIECE_NONE) {
+            snprintf(err, err_sz, "No se puede enrocar: hay piezas entre rey y torre.");
+            return -1;
+        }
+    }
+
+    // 3) Valida que las casillas por las que pasa el rey no estén atacadas
+    int king_path_files[3];
+    int path_len = 0;
+    if (mv->is_castle_short) {
+        king_path_files[0] = king_file_start;
+        king_path_files[1] = king_file_start + step; // f
+        king_path_files[2] = king_file_end;          // g
+        path_len = 3;
+    } else {
+        king_path_files[0] = king_file_start;
+        king_path_files[1] = king_file_start + step; // d
+        king_path_files[2] = king_file_end;          // c
+        path_len = 3;
+    }
+
+    for (int i = 0; i < path_len; ++i) {
+        int f = king_path_files[i];
+        if (is_square_attacked(b, king_rank, f, enemy)) {
+            snprintf(err, err_sz, "No se puede enrocar: el rey pasaría por casilla atacada.");
+            return -1;
+        }
+    }
+
+    // 4) Aplicar enroque: mover rey y torre
+    Piece king_copy = *king;
+    Piece rook_copy = *rook;
+
+    king->type = PIECE_NONE; king->color = COLOR_NONE;
+    rook->type = PIECE_NONE; rook->color = COLOR_NONE;
+
+    b->board[king_rank][king_file_end] = king_copy;
+    b->board[king_rank][rook_file_end] = rook_copy;
+
+    // 5) Actualizar derechos de enroque
+    if (side == COLOR_WHITE) {
+        b->white_can_castle_short = 0;
+        b->white_can_castle_long = 0;
+    } else {
+        b->black_can_castle_short = 0;
+        b->black_can_castle_long = 0;
+    }
+
+    return 0;
+}
+
 
 int board_apply_move(Board *b,
                      const MoveAST *mv,
@@ -622,24 +1047,47 @@ int board_apply_move(Board *b,
         snprintf(error_msg, error_msg_size, "Argumentos nulos en board_apply_move");
         return -1;
     }
-    // Enroques aún no soportados en esta versión
+
+    // 1) Caso especial: enroque
     if (mv->is_castle_short || mv->is_castle_long) {
+        Board tmp = *b;
+
+        // Intentar aplicar el enroque en el tablero temporal
+        if (apply_castling(&tmp, mv, side_to_move, error_msg, error_msg_size) != 0) {
+            return -1;
+        }
+
+        // Validar que el rey no quede en jaque después del enroque
+        if (is_king_in_check(&tmp, side_to_move)) {
+            snprintf(error_msg, error_msg_size,
+                    "Enroque ilegal: el rey quedaría en jaque.");
+            return -1;
+        }
+
+        // Si es legal, aplicar en el tablero real
+        *b = tmp;
+        return 0;
+    }
+
+    // 2) Determinar tipo de pieza a partir de mv->piece 
+
+    char piece_char = mv->piece ? mv->piece : 'P'; // Por defecto peón
+    PieceType pt = piece_type_from_char(piece_char);
+
+    // Validar que haya un tipo de pieza válido
+    if (pt == PIECE_NONE) {
         snprintf(error_msg, error_msg_size,
-                 "Enroque aún no soportado en esta versión.");
+                 "Tipo de pieza inválido en el movimiento: %c",
+                 piece_char);
         return -1;
     }
 
-    // Determinar tipo de pieza a partir de mv->piece
-    // Si mv->piece == 0, asumimos 'P'
-    char piece_char = mv->piece ? mv->piece : 'P';
-    PieceType pt = piece_type_from_char(piece_char);
-
-    // 1) Validar que la pieza sea válida
+    // Variables para casilla origen y destino
     int sr = -1, sf = -1;
     int df = file_to_index(mv->dest_file);
     int dr = rank_to_index(mv->dest_rank);
 
-    // 2) Validar destino
+    // 3) Validar destino dentro del tablero
     if (df < 0 || df > 7 || dr < 0 || dr > 7) {
         snprintf(error_msg, error_msg_size,
                  "Destino inválido: %c%c",
@@ -648,7 +1096,28 @@ int board_apply_move(Board *b,
         return -1;
     }
 
-    // 3) Encontrar la casilla origen (sr,sf)
+    // 4) Reglas adicionales de peones: promoción obligatoria/correcta
+    if (pt == PIECE_PAWN) {
+        int last_rank = (side_to_move == COLOR_WHITE) ? 7 : 0;
+        int reaching_last = (dr == last_rank);
+        int has_promo = (mv->promotion != 0);
+
+        if (reaching_last && !has_promo) {
+            snprintf(error_msg, error_msg_size,
+                     "Movimiento ilegal: el peón que llega a la última fila debe promocionar (%s).",
+                     mv->raw);
+            return -1;
+        }
+
+        if (!reaching_last && has_promo) {
+            snprintf(error_msg, error_msg_size,
+                     "Movimiento ilegal: solo se puede promocionar al llegar a la última fila (%s).",
+                     mv->raw);
+            return -1;
+        }
+    }
+
+    // 5) Encontrar la casilla origen (sr,sf)
     if (pt == PIECE_KNIGHT) {
         if (find_knight_source(b, mv, side_to_move, &sr, &sf,
                             error_msg, error_msg_size) != 0)
@@ -674,39 +1143,132 @@ int board_apply_move(Board *b,
                             error_msg, error_msg_size) != 0)
             return -1;
     }
+    else if (pt == PIECE_KING) {
+        int found = 0;
+
+        for (int r = 0; r < 8; ++r) {
+            for (int f = 0; f < 8; ++f) {
+                Piece *p = &b->board[r][f];
+
+                if (p->type == PIECE_KING && p->color == side_to_move) {
+
+                    // ¿Puede este rey ir a (dr, df)?
+                    if (!can_king_move(b, r, f, dr, df, mv->is_capture, side_to_move)) {
+                        snprintf(error_msg, error_msg_size,
+                                "Movimiento ilegal del rey: no puede ir a %c%c",
+                                mv->dest_file, mv->dest_rank);
+                        return -1;
+                    }
+
+                    // Guardar origen
+                    sr = r;
+                    sf = f;
+                    found = 1;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+
+        if (!found) {
+            snprintf(error_msg, error_msg_size,
+                    "No se encontró el rey del bando que mueve.");
+            return -1;
+        }
+    }
     else {
         snprintf(error_msg, error_msg_size,
-                "Por ahora todavía no soportamos movimientos de rey.");
+                 "Tipo de pieza no soportada.");
         return -1;
     }
 
+    // 6) Simular el movimiento en un tablero temporal 
 
-    // 4) Aplicar el movimiento
-    Piece moving = b->board[sr][sf];
-    b->board[sr][sf].type = PIECE_NONE;
-    b->board[sr][sf].color = COLOR_NONE;
+    Board tmp = *b;
 
-    // 5) Manejo de promoción de peón
+    // Piezas involucradas antes de mover
+    Piece moving_before = tmp.board[sr][sf];
+    Piece captured_before = tmp.board[dr][df];  // puede ser NONE
+
+    // Detectar si esta jugada es una captura al paso
+    int is_en_passant_capture = 0;
+    if (pt == PIECE_PAWN &&
+        mv->is_capture &&
+        captured_before.type == PIECE_NONE &&  /* destino está vacío */
+        b->en_passant_file == df &&
+        b->en_passant_rank == dr) {
+        is_en_passant_capture = 1;
+    }
+
+    // Prohibir capturar al rey enemigo
+    if (captured_before.type == PIECE_KING &&
+        captured_before.color != side_to_move) {
+        snprintf(error_msg, error_msg_size,
+                 "Movimiento ilegal: no se puede capturar al rey.");
+        return -1;
+    }
+
+    // Actualizar derechos de enroque en el tablero temporal:
+    update_castling_rights_on_move(&tmp, side_to_move, pt, sr, sf);
+    update_castling_rights_on_capture(&tmp, &captured_before, dr, df);
+
+    // Aplicar el movimiento en tmp
+    Piece moving = moving_before;
+
+    // Vaciar la casilla origen
+    tmp.board[sr][sf].type = PIECE_NONE;
+    tmp.board[sr][sf].color = COLOR_NONE;
+
+    // Si es captura al paso, eliminar el peón enemigo en la casilla correcta
+    if (is_en_passant_capture) {
+        int pawn_rank = (side_to_move == COLOR_WHITE) ? dr - 1 : dr + 1;
+        tmp.board[pawn_rank][df].type  = PIECE_NONE;
+        tmp.board[pawn_rank][df].color = COLOR_NONE;
+    }
+
+    // Manejar promoción de peón
     if (pt == PIECE_PAWN && mv->promotion) {
-        // convertir mv->promotion ('Q','R','B','N') a PieceType
         PieceType promo_type = piece_type_from_char(mv->promotion);
-        if (promo_type == PIECE_NONE || promo_type == PIECE_PAWN) {
-            // si algo raro, lo dejamos como dama por defecto o marcamos error;
-               // por ahora lo dejamos como dama si mv->promotion == 'Q' */
-            promo_type = PIECE_QUEEN;
+
+        if (promo_type != PIECE_QUEEN &&
+            promo_type != PIECE_ROOK  &&
+            promo_type != PIECE_BISHOP &&
+            promo_type != PIECE_KNIGHT) {
+            snprintf(error_msg, error_msg_size,
+                     "Pieza de promoción inválida: %c. Debe ser Q, R, B o N.",
+                     mv->promotion);
+            return -1;
         }
         moving.type = promo_type;
     }
 
-    // 6) Colocar la pieza en destino
-    b->board[dr][df] = moving;
+    // Colocar la pieza en la casilla destino
+    tmp.board[dr][df] = moving;
 
-    /* Más adelante aquí verificaremos si el rey queda en jaque
-       y, si es así, revertiremos el movimiento. */
+    tmp.en_passant_file = -1;
+    tmp.en_passant_rank = -1;
+
+    if (pt == PIECE_PAWN && !mv->is_capture) {
+        int dir = (side_to_move == COLOR_WHITE) ? 1 : -1;
+        // Si el peón avanzó dos casillas, hay posibilidad de en passant
+        if (dr - sr == 2 * dir) {
+            tmp.en_passant_file = df;
+            tmp.en_passant_rank = sr + dir; // casilla intermedia que "saltó"
+        }
+    }
+
+    // 7) Validar si el rey propio queda en jaque en la posición resultante
+    if (is_king_in_check(&tmp, side_to_move)) {
+        snprintf(error_msg, error_msg_size,
+                 "Movimiento ilegal: el rey quedaría en jaque tras %s", mv->raw);
+        return -1;
+    }
+    
+    // 8) Si es legal, copiar tablero temporal al real
+    *b = tmp;
 
     return 0;
 }
-
 
 
 

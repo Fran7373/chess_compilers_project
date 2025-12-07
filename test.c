@@ -33,7 +33,7 @@ int main(void) {
 
     while (1)
     {
-        /* code */char input[256];
+        char input[256];
 
     printf("Ingrese un movimiento SAN: ");
     if (!fgets(input, sizeof(input), stdin)) {
@@ -50,6 +50,7 @@ int main(void) {
         return 1;
     }
 
+    // Lexer
     TokenList tl;
     if (tokenize(input, &tl) != 0) {
         fprintf(stderr, "Error léxico al tokenizar la entrada.\n");
@@ -63,33 +64,38 @@ int main(void) {
         if (t->type == TK_END) break;
     }
 
-    // Parsear
+    // Parser
     MoveAST m;
-    int perr = parse_move(&tl, &m);
-    if (perr == 0) {
-        printf("\n");
-        print_moveast(&m);
 
-        /* Intentar aplicar el movimiento al tablero */
-        char error[256];
-        int serr = board_apply_move(&board, &m, side_to_move, error, sizeof(error));
-        if (serr == 0) {
-            printf("\nMovimiento semánticamente válido. Tablero actualizado:\n");
-            board_print(&board);
+    if (parse_move(&tl, &m) != 0) {
+        printf("\nError sintáctico al parsear '%s'\n\n", input);
+        tokenlist_free(&tl);
+        continue;
+    }
 
-            /* Cambiar el turno */
-            side_to_move = (side_to_move == COLOR_WHITE) ? COLOR_BLACK : COLOR_WHITE;
-        } else {
-            printf("\nError semántico: %s\n", error);
-        }
+    printf("\n");
+    print_moveast(&m);
 
+    // Semant
+    char error_msg[256] = {0};
+
+    int serr = board_apply_move(&board, &m, side_to_move,
+                                error_msg, sizeof(error_msg));
+
+    if (serr == 0) {
+        printf("\nMovimiento semánticamente válido. Tablero actualizado:\n");
+        board_print(&board);
+
+        /* Cambiar turno */
+        side_to_move = (side_to_move == COLOR_WHITE) ? COLOR_BLACK : COLOR_WHITE;
     } else {
-        printf("\nError sintáctico al parsear el movimiento.\n");
+        printf("\nError semántico: %s\n", error_msg);
+        printf("\nEl tablero permanece igual:\n");
+        board_print(&board);
     }
 
     tokenlist_free(&tl);
     }
-    
-    
+
     return 0;
 }
