@@ -1,0 +1,78 @@
+#ifndef BOARD_H
+#define BOARD_H
+
+#include "ast.h"
+
+// Color de la pieza
+typedef enum {
+    COLOR_NONE = 0,
+    COLOR_WHITE,
+    COLOR_BLACK
+} Color;
+
+// Tipo de pieza
+typedef enum {
+    PIECE_NONE = 0,
+    PIECE_PAWN,
+    PIECE_KNIGHT,
+    PIECE_BISHOP,
+    PIECE_ROOK,
+    PIECE_QUEEN,
+    PIECE_KING
+} PieceType;
+
+
+// Pieza en una casilla
+typedef struct {
+    Color color;
+    PieceType type;
+} Piece;
+
+
+typedef struct {
+    Piece board[8][8];
+
+    // Validación de enroques
+    int white_can_castle_short;
+    int white_can_castle_long;
+    int black_can_castle_short;
+    int black_can_castle_long;
+} Board;
+
+
+// Convierte a index
+int file_to_index(char file);
+int rank_to_index(char rank);
+
+// Inicializa el tablero
+void board_init_start(Board *b);
+
+// Imprime el tablero 
+void board_print(const Board *b);
+
+/* Aplica un movimiento ya parseado (MoveAST) al tablero.
+   side_to_move indica a quién le toca (COLOR_WHITE o COLOR_BLACK).
+   Si el movimiento es ilegal, devuelve -1 y escribe un mensaje en error_msg.
+   Si es legal, devuelve 0 y modifica el tablero. */
+int board_apply_move(Board *b,
+                     const MoveAST *mv,
+                     Color side_to_move,
+                     char *error_msg,
+                     size_t error_msg_size);
+
+#endif 
+
+// int can_pawn_move(const Board *b, int sr, int sf, int dr, int df,
+//                   const MoveAST *mv, Color side);
+
+// int can_knight_move(...);
+// int can_bishop_move(...);
+// int can_rook_move(...);
+// int can_queen_move(...);
+// int can_king_move(...);
+
+
+// int can_piece_move(const Board *b,
+//                    int sr, int sf, int dr, int df,
+//                    const MoveAST *mv,
+//                    Color side);

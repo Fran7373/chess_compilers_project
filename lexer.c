@@ -4,18 +4,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* helpers TokenList */
+// listas de tokens
 void tokenlist_init(TokenList *tl) {
     tl->items = NULL;
     tl->count = 0;
     tl->cap = 0;
 }
+
+// liberar memoria usada por la lista
 void tokenlist_free(TokenList *tl) {
     free(tl->items);
     tl->items = NULL;
     tl->count = 0;
     tl->cap = 0;
 }
+
+// agregar token a la lista
 void tokenlist_push(TokenList *tl, Token t) {
     if (tl->count == tl->cap) {
         size_t newcap = tl->cap ? tl->cap * 2 : 8;

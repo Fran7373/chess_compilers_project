@@ -34,7 +34,9 @@ int parse_move(const TokenList *tokens, MoveAST *out) {
         fprintf(stderr, "parse_move: argumentos nulos\n");
         return -1;
     }
+    // inicializar MoveAST
     memset(out, 0, sizeof(*out));
+    // construir raw
     build_raw(out, tokens);
 
     size_t i = 0;

@@ -4,6 +4,7 @@
 #include "ast.h"
 #include "lexer.h"
 #include "parser.h"
+#include "board.h"
 
 static void print_moveast(const MoveAST *m) {
     if (!m) return;
@@ -23,6 +24,13 @@ static void print_moveast(const MoveAST *m) {
 }
 
 int main(void) {
+    
+    Board board;
+    board_init_start(&board);
+    board_print(&board);
+
+    Color side_to_move = COLOR_WHITE;
+
     while (1)
     {
         /* code */char input[256];
@@ -61,6 +69,20 @@ int main(void) {
     if (perr == 0) {
         printf("\n");
         print_moveast(&m);
+
+        /* Intentar aplicar el movimiento al tablero */
+        char error[256];
+        int serr = board_apply_move(&board, &m, side_to_move, error, sizeof(error));
+        if (serr == 0) {
+            printf("\nMovimiento semánticamente válido. Tablero actualizado:\n");
+            board_print(&board);
+
+            /* Cambiar el turno */
+            side_to_move = (side_to_move == COLOR_WHITE) ? COLOR_BLACK : COLOR_WHITE;
+        } else {
+            printf("\nError semántico: %s\n", error);
+        }
+
     } else {
         printf("\nError sintáctico al parsear el movimiento.\n");
     }

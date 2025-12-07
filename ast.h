@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 
+// Definiciones para el análisis sintáctico de movimientos de ajedrez
 typedef enum {
     TK_UNKNOWN,
     TK_PIECE,        // K Q R B N
@@ -18,17 +19,21 @@ typedef enum {
     TK_END
 } TokenType;
 
+// Es cada token reconocido
 typedef struct {
     TokenType type;
     char text[8]; // textual value (suficiente para "O-O-O")
 } Token;
 
+
+// Lista dinámica de tokens
 typedef struct {
     Token *items;
     size_t count;
     size_t cap;
 } TokenList;
 
+// Nodo AST para un movimiento de ajedrez
 typedef struct {
     char piece;        // 'K','Q','R','B','N' o 'P' para peón
     char src_file;     // 'a'..'h' o 0
