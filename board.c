@@ -350,6 +350,267 @@ static int find_pawn_source(const Board *b,
     return 0;
 }
 
+// Verifica si el camino entre (sr,sf) y (dr,df) está libre (sin piezas en el medio)
+// Solo para movimientos en horizontal, vertical o diagonal
+// 1 = libre
+// 0 = bloqueado
+static int path_is_clear(const Board *b, int sr, int sf, int dr, int df)
+{
+    // contition ? value_if_true : value_if_false
+    int step_r = (dr > sr) ? 1 : (dr < sr) ? -1 : 0; // dirección en fila
+    int step_f = (df > sf) ? 1 : (df < sf) ? -1 : 0; // dirección en columna
+
+    // vertical si      step_f == 0
+    // horizontal si    step_r == 0
+    // diagonal si      ambos != 0
+
+    int r = sr + step_r;
+    int f = sf + step_f;
+
+    while (r != dr || f != df) {
+        if (b->board[r][f].type != PIECE_NONE)
+            return 0;  // hay algo en el camino
+
+        r += step_r;
+        f += step_f;
+    }
+    return 1;
+}
+
+// Valida el movimiento de un alfil
+// 1 = válido
+// 0 = inválido
+static int can_bishop_move(const Board *b,
+                           int sr, int sf,
+                           int dr, int df,
+                           int is_capture,
+                           Color side)
+{
+    const Piece *dest = &b->board[dr][df]; // pieza en destino
+
+    int d_rank = dr - sr;
+    int d_file = df - sf;
+
+    if (d_rank < 0) d_rank = -d_rank;
+    if (d_file < 0) d_file = -d_file;
+
+    // debe ser diagonal exacta
+    if (d_rank != d_file) return 0;
+
+    // verificar camino libre
+    if (!path_is_clear(b, sr, sf, dr, df)) return 0;
+
+    // manejar captura / no captura
+    if (is_capture) {
+        if (dest->type == PIECE_NONE) return 0;
+        if (dest->color == side) return 0;
+    } else {
+        if (dest->type != PIECE_NONE) return 0;
+    }
+    return 1;
+}
+
+// Busca la casilla origen (sr,sf) de un movimiento de alfil.
+// 0 = válido
+// -1 = error
+static int find_bishop_source(const Board *b,
+                              const MoveAST *mv,
+                              Color side,
+                              int *out_sr,
+                              int *out_sf,
+                              char *err,
+                              size_t err_sz)
+{
+    int df = file_to_index(mv->dest_file);
+    int dr = rank_to_index(mv->dest_rank);
+
+    //valida el filtro del origen
+    int src_file_filter = (mv->src_file ? file_to_index(mv->src_file) : -1);
+    int src_rank_filter = (mv->src_rank ? rank_to_index(mv->src_rank) : -1);
+
+    int found = 0;
+
+    // revisar todas las casillas del tablero
+    for (int r = 0; r < 8; r++) {
+        for (int f = 0; f < 8; f++) {
+            const Piece *p = &b->board[r][f];
+
+            if (p->type != PIECE_BISHOP || p->color != side) continue;
+
+            if (src_file_filter != -1 && f != src_file_filter) continue;
+            if (src_rank_filter != -1 && r != src_rank_filter) continue;
+
+            if (!can_bishop_move(b, r, f, dr, df, mv->is_capture, side))
+                continue;
+
+            found++;
+            *out_sr = r;
+            *out_sf = f;
+        }
+    }
+
+    if (found == 0) {
+        snprintf(err, err_sz, "Ningún alfil puede jugar %s", mv->raw);
+        return -1;
+    }
+    if (found > 1) {
+        snprintf(err, err_sz, "Movimiento ambiguo: más de un alfil puede jugar %s", mv->raw);
+        return -1;
+    }
+    return 0;
+}
+
+// Valida el movimiento de una torre
+// 1 = válido
+// 0 = inválido
+static int can_rook_move(const Board *b,
+                         int sr, int sf,
+                         int dr, int df,
+                         int is_capture,
+                         Color side)
+{
+    const Piece *dest = &b->board[dr][df];
+
+    // debe ser vertical u horizontal
+    if (!(sr == dr || sf == df)) return 0;
+
+    // verificar camino libre
+    if (!path_is_clear(b, sr, sf, dr, df)) return 0;
+
+    // captura / no captura
+    if (is_capture) {
+        if (dest->type == PIECE_NONE) return 0;
+        if (dest->color == side) return 0;
+    } else {
+        if (dest->type != PIECE_NONE) return 0;
+    }
+    return 1;
+}
+
+// Busca la casilla origen (sr,sf) de un movimiento de torre.
+// 0 = válido
+// -1 = error
+static int find_rook_source(const Board *b,
+                            const MoveAST *mv,
+                            Color side,
+                            int *out_sr,
+                            int *out_sf,
+                            char *err,
+                            size_t err_sz)
+{
+    int df = file_to_index(mv->dest_file);
+    int dr = rank_to_index(mv->dest_rank);
+
+    int src_file_filter = (mv->src_file ? file_to_index(mv->src_file) : -1);
+    int src_rank_filter = (mv->src_rank ? rank_to_index(mv->src_rank) : -1);
+
+    int found = 0;
+
+    for (int r = 0; r < 8; r++) {
+        for (int f = 0; f < 8; f++) {
+            const Piece *p = &b->board[r][f];
+
+            if (p->type != PIECE_ROOK || p->color != side) continue;
+
+            if (src_file_filter != -1 && f != src_file_filter) continue;
+            if (src_rank_filter != -1 && r != src_rank_filter) continue;
+
+            if (!can_rook_move(b, r, f, dr, df, mv->is_capture, side))
+                continue;
+
+            found++;
+            *out_sr = r;
+            *out_sf = f;
+        }
+    }
+
+    if (found == 0) {
+        snprintf(err, err_sz, "Ninguna torre puede jugar %s", mv->raw);
+        return -1;
+    }
+    if (found > 1) {
+        snprintf(err, err_sz, "Movimiento ambiguo: más de una torre puede jugar %s", mv->raw);
+        return -1;
+    }
+    return 0;
+}
+
+// Valida el movimiento de una dama
+// 1 = válido
+// 0 = inválido
+static int can_queen_move(const Board *b,
+                          int sr, int sf,
+                          int dr, int df,
+                          int is_capture,
+                          Color side)
+{
+    // movimiento recto (torre) o diagonal (alfil)
+    int is_rook_like   = (sr == dr || sf == df);
+    int is_bishop_like = ( (dr - sr == df - sf) || (dr - sr == sf - df) );
+
+    if (!is_rook_like && !is_bishop_like) return 0;
+
+    if (!path_is_clear(b, sr, sf, dr, df)) return 0;
+
+    const Piece *dest = &b->board[dr][df];
+
+    if (is_capture) {
+        if (dest->type == PIECE_NONE) return 0;
+        if (dest->color == side) return 0;
+    } else {
+        if (dest->type != PIECE_NONE) return 0;
+    }
+    return 1;
+}
+
+// Busca la casilla origen (sr,sf) de un movimiento de dama.
+// 0 = válido
+// -1 = error
+static int find_queen_source(const Board *b,
+                             const MoveAST *mv,
+                             Color side,
+                             int *out_sr,
+                             int *out_sf,
+                             char *err,
+                             size_t err_sz)
+{
+    int df = file_to_index(mv->dest_file);
+    int dr = rank_to_index(mv->dest_rank);
+
+    int src_file_filter = (mv->src_file ? file_to_index(mv->src_file) : -1);
+    int src_rank_filter = (mv->src_rank ? rank_to_index(mv->src_rank) : -1);
+
+    int found = 0;
+
+    for (int r = 0; r < 8; r++) {
+        for (int f = 0; f < 8; f++) {
+            const Piece *p = &b->board[r][f];
+
+            if (p->type != PIECE_QUEEN || p->color != side) continue;
+
+            if (src_file_filter != -1 && f != src_file_filter) continue;
+            if (src_rank_filter != -1 && r != src_rank_filter) continue;
+
+            if (!can_queen_move(b, r, f, dr, df, mv->is_capture, side))
+                continue;
+
+            found++;
+            *out_sr = r;
+            *out_sf = f;
+        }
+    }
+
+    if (found == 0) {
+        snprintf(err, err_sz, "Ninguna dama puede jugar %s", mv->raw);
+        return -1;
+    }
+    if (found > 1) {
+        snprintf(err, err_sz, "Movimiento ambiguo: más de una dama puede jugar %s", mv->raw);
+        return -1;
+    }
+    return 0;
+}
+
 
 int board_apply_move(Board *b,
                      const MoveAST *mv,
@@ -368,17 +629,17 @@ int board_apply_move(Board *b,
         return -1;
     }
 
-    /* Determinar tipo de pieza a partir de mv->piece.
-       Si mv->piece == 0 (caso peón en la notación SAN), asumimos 'P'. */
+    // Determinar tipo de pieza a partir de mv->piece
+    // Si mv->piece == 0, asumimos 'P'
     char piece_char = mv->piece ? mv->piece : 'P';
     PieceType pt = piece_type_from_char(piece_char);
 
+    // 1) Validar que la pieza sea válida
     int sr = -1, sf = -1;
-    int dr = file_to_index(mv->dest_file);
     int df = file_to_index(mv->dest_file);
-    /* ojo: dr es rank, corrijamos: */
-    dr = rank_to_index(mv->dest_rank);
+    int dr = rank_to_index(mv->dest_rank);
 
+    // 2) Validar destino
     if (df < 0 || df > 7 || dr < 0 || dr > 7) {
         snprintf(error_msg, error_msg_size,
                  "Destino inválido: %c%c",
@@ -387,46 +648,57 @@ int board_apply_move(Board *b,
         return -1;
     }
 
-    /* Según el tipo de pieza, usamos una búsqueda distinta */
+    // 3) Encontrar la casilla origen (sr,sf)
     if (pt == PIECE_KNIGHT) {
         if (find_knight_source(b, mv, side_to_move, &sr, &sf,
-                               error_msg, error_msg_size) != 0) {
-            return -1; /* error_msg ya rellenado */
-        }
+                            error_msg, error_msg_size) != 0)
+            return -1;
     }
     else if (pt == PIECE_PAWN) {
         if (find_pawn_source(b, mv, side_to_move, &sr, &sf,
-                             error_msg, error_msg_size) != 0) {
+                            error_msg, error_msg_size) != 0)
             return -1;
-        }
+    }
+    else if (pt == PIECE_BISHOP) {
+        if (find_bishop_source(b, mv, side_to_move, &sr, &sf,
+                            error_msg, error_msg_size) != 0)
+            return -1;
+    }
+    else if (pt == PIECE_ROOK) {
+        if (find_rook_source(b, mv, side_to_move, &sr, &sf,
+                            error_msg, error_msg_size) != 0)
+            return -1;
+    }
+    else if (pt == PIECE_QUEEN) {
+        if (find_queen_source(b, mv, side_to_move, &sr, &sf,
+                            error_msg, error_msg_size) != 0)
+            return -1;
     }
     else {
         snprintf(error_msg, error_msg_size,
-                 "Por ahora solo se soportan peones (implícitos) y caballos (N). Movimiento: %s",
-                 mv->raw);
+                "Por ahora todavía no soportamos movimientos de rey.");
         return -1;
     }
-    
-    /* 4) Aplicar el movimiento (sin comprobar jaques aún).
-          Mover pieza de (sr,sf) a (dr,df).
-          Si hay promoción, cambiar el tipo en destino. */
 
+
+    // 4) Aplicar el movimiento
     Piece moving = b->board[sr][sf];
     b->board[sr][sf].type = PIECE_NONE;
     b->board[sr][sf].color = COLOR_NONE;
 
-    /* Manejo de promoción de peón */
+    // 5) Manejo de promoción de peón
     if (pt == PIECE_PAWN && mv->promotion) {
-        /* convertir mv->promotion ('Q','R','B','N') a PieceType */
+        // convertir mv->promotion ('Q','R','B','N') a PieceType
         PieceType promo_type = piece_type_from_char(mv->promotion);
         if (promo_type == PIECE_NONE || promo_type == PIECE_PAWN) {
-            /* si algo raro, lo dejamos como dama por defecto o marcamos error;
-               por ahora lo dejamos como dama si mv->promotion == 'Q' */
+            // si algo raro, lo dejamos como dama por defecto o marcamos error;
+               // por ahora lo dejamos como dama si mv->promotion == 'Q' */
             promo_type = PIECE_QUEEN;
         }
         moving.type = promo_type;
     }
 
+    // 6) Colocar la pieza en destino
     b->board[dr][df] = moving;
 
     /* Más adelante aquí verificaremos si el rey queda en jaque
