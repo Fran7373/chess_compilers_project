@@ -1570,40 +1570,91 @@ int board_apply_move(Board *b,
 }
 
 // Convierte una pieza en su representación de carácter para impresión
-static char piece_to_char(const Piece *p) {
-    if (!p || p->type == PIECE_NONE) return '.';
+static const char* piece_to_unicode(const Piece *p) {
+    if (!p || p->type == PIECE_NONE) return " ";
 
-    char c = '?';
-    switch (p->type) {
-        case PIECE_PAWN:   c = 'P'; break;
-        case PIECE_KNIGHT: c = 'N'; break;
-        case PIECE_BISHOP: c = 'B'; break;
-        case PIECE_ROOK:   c = 'R'; break;
-        case PIECE_QUEEN:  c = 'Q'; break;
-        case PIECE_KING:   c = 'K'; break;
-        default:           c = '?'; break;
+    // Piezas blancas (Unicode)
+    if (p->color == COLOR_WHITE) {
+        switch (p->type) {
+            case PIECE_KING:   return "♔";
+            case PIECE_QUEEN:  return "♕";
+            case PIECE_ROOK:   return "♖";
+            case PIECE_BISHOP: return "♗";
+            case PIECE_KNIGHT: return "♘";
+            case PIECE_PAWN:   return "♙";
+            default:           return " ";
+        }
+    }
+    // Piezas negras (Unicode)
+    else if (p->color == COLOR_BLACK) {
+        switch (p->type) {
+            case PIECE_KING:   return "♚";
+            case PIECE_QUEEN:  return "♛";
+            case PIECE_ROOK:   return "♜";
+            case PIECE_BISHOP: return "♝";
+            case PIECE_KNIGHT: return "♞";
+            case PIECE_PAWN:   return "♟";
+            default:           return " ";
+        }
     }
 
-    /* Piezas negras en minúscula, blancas en mayúscula */
-    if (p->color == COLOR_BLACK) {
-        c = (char)(c + ('a' - 'A')); /* convertir a minúscula */
-    }
-
-    return c;
+    return " ";
 }
 
-// Imprime el tablero en la consola
+// Códigos ANSI para colores de terminal
+#define ANSI_RESET       "\033[0m"      // Resetear a colores por defecto
+#define ANSI_BOLD        "\033[1m"      // Negrita (para piezas blancas)
+#define ANSI_NORMAL      "\033[22m"     // Normal (para piezas negras)
+#define ANSI_REVERSE     "\033[7m"      // Invertir colores (casillas oscuras)
+#define ANSI_NO_REVERSE  "\033[27m"     // No invertir (casillas claras)
+
+// Imprime el tablero en la consola con símbolos Unicode y colores adaptativos
 void board_print(const Board *b) {
     if (!b) return;
 
-    printf("\n  Tablero actual:\n\n");
+    printf("\n");
+    printf("  ╔═══╤═══╤═══╤═══╤═══╤═══╤═══╤═══╗\n");
+
     for (int r = 7; r >= 0; --r) {
-        printf("%d  ", r + 1);   /* número de fila (1..8) */
+        printf("%d ║", r + 1);
+
         for (int f = 0; f < 8; ++f) {
-            char c = piece_to_char(&b->board[r][f]);
-            printf("%c ", c);
+            const Piece *p = &b->board[r][f];
+            const char *symbol = piece_to_unicode(p);
+
+            // Determinar si la casilla es clara u oscura
+            int is_light = (r + f) % 2 == 0;
+
+            // Determinar estilo de la pieza (bold para blancas, normal para negras)
+            const char *piece_style = "";
+            if (p->type != PIECE_NONE) {
+                piece_style = (p->color == COLOR_WHITE) ? ANSI_BOLD : ANSI_NORMAL;
+            }
+
+            // Aplicar color de casilla (inverso para oscuras, normal para claras)
+            if (is_light) {
+                // Casilla clara: colores normales de la terminal
+                printf("%s%s %s %s", ANSI_NO_REVERSE, piece_style, symbol, ANSI_RESET);
+            } else {
+                // Casilla oscura: invertir colores (fondo<->texto)
+                printf("%s%s %s %s", ANSI_REVERSE, piece_style, symbol, ANSI_RESET);
+            }
+
+            // Separador entre columnas
+            if (f < 7) {
+                printf("│");
+            }
         }
-        printf("\n");
+
+        printf("║\n");
+
+        // Separador entre filas (excepto después de la última)
+        if (r > 0) {
+            printf("  ╟───┼───┼───┼───┼───┼───┼───┼───╢\n");
+        }
     }
-    printf("\n   a b c d e f g h\n\n");
+
+    printf("  ╚═══╧═══╧═══╧═══╧═══╧═══╧═══╧═══╝\n");
+    printf("    a   b   c   d   e   f   g   h\n\n");
 }
+
