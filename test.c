@@ -6,14 +6,9 @@
 #include "parser.h"
 #include "board.h"
 
-// -----------------------------------------------------------
-// Conversión desde coordenadas (src, dst) a SAN básico.
-// Ejemplos:
-//    e2 → e4   => "e4"
-//    e4 → d5   => "exd5"
-//    g1 → f3   => "Nf3"
-//    f3 → e5   => "Nxe5"
-// -----------------------------------------------------------
+// =============================================================
+//   Conversión desde coordenadas (src, dst) a SAN
+// =============================================================
 char *square_to_san(char *buf, const char *src, const char *dst, const Board *b) {
 
     int sf = src[0] - 'a';
@@ -25,14 +20,13 @@ char *square_to_san(char *buf, const char *src, const char *dst, const Board *b)
     const Piece *dest = &b->board[dr][df];
 
     if (p->type == PIECE_NONE) {
-        strcpy(buf, ""); // Origen vacío → no se puede generar SAN.
+        strcpy(buf, "");
         return buf;
     }
 
-    // Traducir tipo de pieza a letra SAN
     char pieceChar;
     switch (p->type) {
-        case PIECE_PAWN:   pieceChar = 0;   break; // Los peones no llevan letra
+        case PIECE_PAWN:   pieceChar = 0;   break; 
         case PIECE_KNIGHT: pieceChar = 'N'; break;
         case PIECE_BISHOP: pieceChar = 'B'; break;
         case PIECE_ROOK:   pieceChar = 'R'; break;
@@ -46,35 +40,32 @@ char *square_to_san(char *buf, const char *src, const char *dst, const Board *b)
     int is_capture = (dest->type != PIECE_NONE);
 
     // ------------------------------
-    // CASO 1: PEÓN
+    // PEONES
     // ------------------------------
     if (p->type == PIECE_PAWN) {
         if (is_capture) {
-            // exd5 → columna origen + 'x' + destino
             snprintf(buf, 16, "%c%c%c%c", src[0], 'x', dst[0], dst[1]);
         } else {
-            // e4 → destino
             snprintf(buf, 16, "%c%c", dst[0], dst[1]);
         }
         return buf;
     }
 
     // ------------------------------
-    // CASO 2: PIEZAS (N, B, R, Q, K)
+    // PIEZAS (N, B, R, Q, K)
     // ------------------------------
     if (is_capture) {
-        // Nxe5, Bxd3, etc.
         snprintf(buf, 16, "%c%c%c%c", pieceChar, 'x', dst[0], dst[1]);
     } else {
-        // Nf3, Bd6, etc.
         snprintf(buf, 16, "%c%c%c", pieceChar, dst[0], dst[1]);
     }
 
     return buf;
 }
 
-
-
+// =============================================================
+//   Función auxiliar para imprimir el AST
+// =============================================================
 static void print_moveast(const MoveAST *m) {
     if (!m) return;
     printf("Parsed MoveAST:\n");
@@ -92,87 +83,196 @@ static void print_moveast(const MoveAST *m) {
     printf("  is_mate: %d\n", m->is_mate);
 }
 
-int main(void) {
-    
+
+// =============================================================
+//   MODO 1: Jugar usando origen/destino
+// =============================================================
+void jugar_interfaz() {
+
     Board board;
     board_init_start(&board);
     board_print(&board);
-
     Color side_to_move = COLOR_WHITE;
 
-    while (1)
-    {
+    while (1) {
+
+        if (side_to_move == COLOR_WHITE)
+            printf("\n>>> Turno de las BLANCAS <<<\n");
+        else
+            printf("\n>>> Turno de las NEGRAS <<<\n");
+
         char src[3], dst[3], san[16];
 
-        printf("Tomar ficha (origen, ej: e2): ");
-        if (scanf("%2s", src) != 1) {
-            printf("Entrada inválida.\n");
-            return 0;
-        }
+        printf("Tomar ficha (ej: e2): ");
+        scanf("%2s", src);
 
-        printf("Mover ficha (destino, ej: e4): ");
-        if (scanf("%2s", dst) != 1) {
-            printf("Entrada inválida.\n");
-            return 0;
-        }
+        printf("Mover ficha (ej: e4): ");
+        scanf("%2s", dst);
 
-        // Convertir origen + destino a SAN
         square_to_san(san, src, dst, &board);
         printf("SAN generado: %s\n", san);
 
-        // --------------------------
-        // Lexer
-        // --------------------------
         TokenList tl;
-        if (tokenize(san, &tl) != 0) {
-            fprintf(stderr, "Error léxico al tokenizar la entrada.\n");
-            continue;
-        }
+        tokenize(san, &tl);
 
-        printf("\nTokens detectados:\n");
-        for (size_t i = 0; i < tl.count; ++i) {
-            Token *t = &tl.items[i];
-            printf("   %2zu: %-18s '%s'\n", i, token_name(t->type), t->text);
-            if (t->type == TK_END) break;
-        }
-
-        // --------------------------
-        // Parser
-        // --------------------------
         MoveAST m;
         if (parse_move(&tl, &m) != 0) {
-            printf("\nError sintáctico al parsear '%s'\n\n", san);
+            printf("Error sintactico.\n");
             tokenlist_free(&tl);
             continue;
         }
 
-        printf("\n");
-        print_moveast(&m);
-
-        // --------------------------
-        // Semántica
-        // --------------------------
-        char error_msg[256] = {0};
-
-        int serr = board_apply_move(&board, &m, side_to_move,
-                                    error_msg, sizeof(error_msg));
-
-        if (serr == 0) {
-            printf("\nMovimiento semánticamente válido. Tablero actualizado:\n");
+        char error_msg[256];
+        if (board_apply_move(&board, &m, side_to_move, error_msg, sizeof(error_msg)) == 0) {
             board_print(&board);
-
-            // Cambiar turno
-            side_to_move = (side_to_move == COLOR_WHITE)
-                               ? COLOR_BLACK
-                               : COLOR_WHITE;
+            side_to_move = (side_to_move == COLOR_WHITE ? COLOR_BLACK : COLOR_WHITE);
         } else {
-            printf("\nError semántico: %s\n", error_msg);
-            printf("\nEl tablero permanece igual:\n");
+            printf("Error semantico: %s\n", error_msg);
             board_print(&board);
         }
 
         tokenlist_free(&tl);
     }
+}
 
-    return 0;
+
+
+// =============================================================
+//   MODO 2: Jugar ingresando SAN directamente
+// =============================================================
+void jugar_san() {
+
+    Board board;
+    board_init_start(&board);
+    board_print(&board);
+    Color side_to_move = COLOR_WHITE;
+
+    char input[256];
+
+    while (1) {
+
+        if (side_to_move == COLOR_WHITE)
+            printf("\n>>> Turno de las BLANCAS <<<\n");
+        else
+            printf("\n>>> Turno de las NEGRAS <<<\n");
+
+        printf("Ingrese jugada SAN: ");
+
+        if (!fgets(input, sizeof(input), stdin)) {
+            printf("Entrada invalida.\n");
+            return;
+        }
+
+        input[strcspn(input, "\r\n")] = 0;
+
+        TokenList tl;
+        tokenize(input, &tl);
+
+        MoveAST m;
+        if (parse_move(&tl, &m) != 0) {
+            printf("Error sintactico.\n");
+            tokenlist_free(&tl);
+            continue;
+        }
+
+        char error_msg[256];
+        if (board_apply_move(&board, &m, side_to_move, error_msg, sizeof(error_msg)) == 0) {
+            board_print(&board);
+            side_to_move = (side_to_move == COLOR_WHITE ? COLOR_BLACK : COLOR_WHITE);
+        } else {
+            printf("Error semantico: %s\n", error_msg);
+            board_print(&board);
+        }
+
+        tokenlist_free(&tl);
+    }
+}
+
+
+
+// =============================================================
+//   MODO 3: Cargar un archivo PGN
+// =============================================================
+void cargar_pgn() {
+
+    char filename[256];
+    printf("Nombre del archivo PGN: ");
+    scanf("%255s", filename);
+
+    FILE *f = fopen(filename, "r");
+    if (!f) {
+        printf("No se pudo abrir el archivo.\n");
+        return;
+    }
+
+    Board board;
+    board_init_start(&board);
+    board_print(&board);
+    Color side_to_move = COLOR_WHITE;
+
+    char san[64];
+
+    while (fscanf(f, "%63s", san) == 1) {
+
+        if (strchr(san, '.')) continue; // saltar "1.", "2.", etc.
+
+        printf("\nLeyendo movimiento: %s\n", san);
+
+        TokenList tl;
+        tokenize(san, &tl);
+
+        MoveAST m;
+        if (parse_move(&tl, &m) != 0) {
+            printf("Error sintactico en %s\n", san);
+            tokenlist_free(&tl);
+            continue;
+        }
+
+        char error_msg[256];
+        if (board_apply_move(&board, &m, side_to_move, error_msg, sizeof(error_msg)) == 0) {
+            board_print(&board);
+            side_to_move = (side_to_move == COLOR_WHITE ? COLOR_BLACK : COLOR_WHITE);
+        } else {
+            printf("Error semantico en %s: %s\n", san, error_msg);
+        }
+
+        tokenlist_free(&tl);
+    }
+
+    fclose(f);
+}
+
+
+
+// =============================================================
+//                 MENU PRINCIPAL
+// =============================================================
+int main(void) {
+
+    int opcion = 0;
+
+    while (1) {
+        printf("\n========= MENU PRINCIPAL =========\n");
+        printf("1. Jugar partida (origen/destino)\n");
+        printf("2. Jugar ingresando SAN\n");
+        printf("3. Cargar archivo PGN\n");
+        printf("4. Salir\n");
+        printf("Seleccione una opcion: ");
+
+        if (scanf("%d", &opcion) != 1) {
+            printf("Entrada invalida.\n");
+            return 0;
+        }
+
+        getchar(); // limpiar salto de linea
+
+        if (opcion == 1)      jugar_interfaz();
+        else if (opcion == 2) jugar_san();
+        else if (opcion == 3) cargar_pgn();
+        else if (opcion == 4) {
+            printf("Saliendo...\n");
+            return 0;
+        }
+        else printf("Opcion no valida.\n");
+    }
 }
