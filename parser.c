@@ -1,4 +1,3 @@
-// src/parser.c  (actualizado: soporte para PIECE FILE RANK FILE RANK y PIECE FILE RANK x FILE RANK)
 #include "parser.h"
 #include <string.h>
 #include <stdio.h>
@@ -82,7 +81,7 @@ int parse_move(const TokenList *tokens, MoveAST *out) {
         const Token *e = tok_at(tokens, i+4);
 
         // ------------------------------------------------------------
-        // NUEVO: Patrón FILE RANK FILE RANK  (ej. Qh4e1)  -> src_file+src_rank, dest_file+dest_rank
+        // Patrón FILE RANK FILE RANK  (ej. Qh4e1)  -> src_file+src_rank, dest_file+dest_rank
         // y variante con captura: FILE RANK CAPTURE FILE RANK (Qh4xe1)
         // ------------------------------------------------------------
         if (a && b && c && d && a->type == TK_FILE && b->type == TK_RANK && c->type == TK_FILE && d->type == TK_RANK) {
@@ -101,21 +100,29 @@ int parse_move(const TokenList *tokens, MoveAST *out) {
             i += 5;
         }
         // ------------------------------------------------------------
-        // Patrón FILE FILE RANK  -> src_file, dest_file, dest_rank  (ej. Raxb1 -> a b 1)
+        // RANK CAPTURE FILE RANK (ej. N5xd4) -> soporte desambiguación por fila + captura
+        else if (a && b && c && d && a->type == TK_RANK && b->type == TK_CAPTURE && c->type == TK_FILE && d->type == TK_RANK) {
+            out->src_rank = a->text[0];
+            out->is_capture = 1;
+            out->dest_file = c->text[0];
+            out->dest_rank = d->text[0];
+            i += 4;
+        }
+        // FILE FILE RANK  -> src_file, dest_file, dest_rank  (Raxb1)
         else if (a && b && c && a->type == TK_FILE && b->type == TK_FILE && c->type == TK_RANK) {
             out->src_file = a->text[0];
             out->dest_file = b->text[0];
             out->dest_rank = c->text[0];
             i += 3;
         }
-        // RANK FILE RANK -> src_rank, dest_file, dest_rank (ej. N1c3)
+        // RANK FILE RANK -> src_rank, dest_file, dest_rank (N1c3)
         else if (a && b && c && a->type == TK_RANK && b->type == TK_FILE && c->type == TK_RANK) {
             out->src_rank = a->text[0];
             out->dest_file = b->text[0];
             out->dest_rank = c->text[0];
             i += 3;
         }
-        // FILE CAPTURE FILE RANK -> src_file, capture, dest (ej. Raxb1)
+        // FILE CAPTURE FILE RANK -> src_file, capture, dest (Raxb1)
         else if (a && b && c && d && a->type == TK_FILE && b->type == TK_CAPTURE && c->type == TK_FILE && d->type == TK_RANK) {
             out->src_file = a->text[0];
             out->is_capture = 1;
@@ -136,7 +143,7 @@ int parse_move(const TokenList *tokens, MoveAST *out) {
             out->dest_rank = b->text[0];
             i += 2;
         }
-        // caso: desambiguación antes del 'x', e.g. Nfxe5  (handled as a + b == FILE + CAPTURE above but ensure)
+        // desambiguación antes del 'x', e.g. Nfxe5
         else if (a && b && a->type == TK_FILE && b->type == TK_CAPTURE) {
             const Token *c2 = tok_at(tokens, i+2);
             const Token *d2 = tok_at(tokens, i+3);
