@@ -4,7 +4,7 @@
 #include "ast.h"
 #include "lexer.h"
 #include "parser.h"
-#include "board.h"
+#include "semant.h"
 
 static void print_moveast(const MoveAST *m) {
     if (!m) return;
@@ -27,6 +27,9 @@ int main(void) {
     
     Board board;
     board_init_start(&board);
+
+    // board_init_stalemate_test(&board);
+
     board_print(&board);
 
     Color side_to_move = COLOR_WHITE;
@@ -86,8 +89,28 @@ int main(void) {
         printf("\nMovimiento semánticamente válido. Tablero actualizado:\n");
         board_print(&board);
 
+        PositionStatus st = board_evaluate_status(&board,
+                                          (side_to_move == COLOR_WHITE)
+                                            ? COLOR_BLACK
+                                            : COLOR_WHITE);
+
+        switch (st) {
+            case POSITION_CHECK:
+                printf("La posición resultante es JAQUE al rival.\n\n");
+                break;
+            case POSITION_CHECKMATE:
+                printf("La posición resultante es JAQUE MATE.\n\n");
+                break;
+            case POSITION_STALEMATE:
+                printf("La posición resultante es TABLAS por ahogado.\n\n");
+                break;
+            default:
+                break;
+        }
+
         /* Cambiar turno */
         side_to_move = (side_to_move == COLOR_WHITE) ? COLOR_BLACK : COLOR_WHITE;
+
     } else {
         printf("\nError semántico: %s\n", error_msg);
         printf("\nEl tablero permanece igual:\n");

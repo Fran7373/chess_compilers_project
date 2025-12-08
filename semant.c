@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
-#include "board.h"
+#include "semant.h"
 
 
 // Convierte columna de caracter a índice
@@ -25,7 +25,7 @@ static void set_piece(Board *b, int rank, int file, Color color, PieceType type)
     b->board[rank][file].type = type;
 }
 
-/* Inicializa el tablero en la posición inicial estándar */
+// Inicializa el tablero en la posición inicial estándar de ajedrez
 void board_init_start(Board *b) {
     if (!b) return;
 
@@ -75,6 +75,39 @@ void board_init_start(Board *b) {
     b->en_passant_file = -1;
     b->en_passant_rank = -1;
 }
+
+// Inicializa el tablero en una posición de ahogado para pruebas
+void board_init_stalemate_test(Board *b)
+{
+    // Vaciar todo
+    for (int r = 0; r < 8; ++r) {
+        for (int f = 0; f < 8; ++f) {
+            b->board[r][f].type  = PIECE_NONE;
+            b->board[r][f].color = COLOR_NONE;
+        }
+    }
+
+    // Colocar rey blanco en h6 (fila 5, columna 7)
+    b->board[5][7].type  = PIECE_KING;
+    b->board[5][7].color = COLOR_WHITE;
+
+    // Colocar dama blanca en g6 (fila 5, columna 6)
+    b->board[5][6].type  = PIECE_QUEEN;
+    b->board[5][6].color = COLOR_WHITE;
+
+    // Colocar rey negro en h8 (fila 7, columna 7)
+    b->board[7][7].type  = PIECE_KING;
+    b->board[7][7].color = COLOR_BLACK;
+
+    // Sin enroques ni en passant
+    b->white_can_castle_short = 0;
+    b->white_can_castle_long  = 0;
+    b->black_can_castle_short = 0;
+    b->black_can_castle_long  = 0;
+    b->en_passant_file = -1;
+    b->en_passant_rank = -1;
+}
+
 
 // Convierte el char de MoveAST.piece a enum PieceType
 static PieceType piece_type_from_char(char c) {
@@ -841,6 +874,125 @@ static int is_king_in_check(const Board *b, Color side)
     return is_square_attacked(b, king_r, king_f, enemy);
 }
 
+static int has_any_legal_move(const Board *b, Color side)
+{
+    if (!b || side == COLOR_NONE) return 0;
+
+    Color enemy = (side == COLOR_WHITE) ? COLOR_BLACK : COLOR_WHITE;
+
+    for (int sr = 0; sr < 8; ++sr) {
+        for (int sf = 0; sf < 8; ++sf) {
+
+            const Piece *p = &b->board[sr][sf];
+            if (p->color != side || p->type == PIECE_NONE)
+                continue;
+
+            PieceType pt = p->type;
+
+            // Recorremos todas las casillas destino posibles
+            for (int dr = 0; dr < 8; ++dr) {
+                for (int df = 0; df < 8; ++df) {
+
+                    // No validamos quedarse en la misma casilla
+                    if (dr == sr && df == sf) continue;
+
+                    const Piece *dest = &b->board[dr][df];
+
+                    // Omitir movimientos que capturan pieza propia
+                    if (dest->type != PIECE_NONE && dest->color == side)
+                        continue;
+
+                    int is_capture = (dest->type != PIECE_NONE);
+
+                    // Lógica especial para peones: en passant
+                    int is_en_passant_capture = 0;
+
+                    if (pt == PIECE_PAWN && dest->type == PIECE_NONE) {
+                        if (b->en_passant_file == df && b->en_passant_rank == dr) {
+                            int pawn_rank = (side == COLOR_WHITE) ? dr - 1 : dr + 1;
+                            if (pawn_rank >= 0 && pawn_rank < 8) {
+                                const Piece *ep = &b->board[pawn_rank][df];
+                                if (ep->type == PIECE_PAWN && ep->color == enemy) {
+                                    is_capture = 1;
+                                    is_en_passant_capture = 1;
+                                }
+                            }
+                        }
+                    }
+
+                    int is_promotion_requested = 0;
+                    if (pt == PIECE_PAWN) {
+                        int last_rank = (side == COLOR_WHITE) ? 7 : 0;
+                        if (dr == last_rank) {
+                            is_promotion_requested = 1;
+                        }
+                    }
+
+                    // Comprobar movimiento geométricamente válido
+                    int ok = 0;
+                    switch (pt) {
+                        case PIECE_PAWN:
+                            ok = can_pawn_move(b, sr, sf, dr, df,
+                                               is_capture,
+                                               side,
+                                               is_promotion_requested);
+                            break;
+                        case PIECE_KNIGHT:
+                            ok = can_knight_move(b, sr, sf, dr, df, is_capture, side);
+                            break;
+                        case PIECE_BISHOP:
+                            ok = can_bishop_move(b, sr, sf, dr, df, is_capture, side);
+                            break;
+                        case PIECE_ROOK:
+                            ok = can_rook_move(b, sr, sf, dr, df, is_capture, side);
+                            break;
+                        case PIECE_QUEEN:
+                            ok = can_queen_move(b, sr, sf, dr, df, is_capture, side);
+                            break;
+                        case PIECE_KING:
+                            ok = can_king_move(b, sr, sf, dr, df, is_capture, side);
+                            break;
+                        default:
+                            ok = 0;
+                            break;
+                    }
+
+                    if (!ok) continue;
+
+                    // Simular el movimiento en un tablero temporal
+                    Board tmp = *b;
+                    Piece moving = tmp.board[sr][sf];
+
+                    tmp.board[sr][sf].type  = PIECE_NONE;
+                    tmp.board[sr][sf].color = COLOR_NONE;
+
+                    // Captura al paso: eliminar el peón enemigo en la casilla correcta
+                    if (pt == PIECE_PAWN && is_en_passant_capture) {
+                        int pawn_rank = (side == COLOR_WHITE) ? dr - 1 : dr + 1;
+                        tmp.board[pawn_rank][df].type  = PIECE_NONE;
+                        tmp.board[pawn_rank][df].color = COLOR_NONE;
+                    }
+
+                    // Promoción: para efectos de jaque/ahogado, basta con promover a dama
+                    if (pt == PIECE_PAWN && is_promotion_requested) {
+                        moving.type = PIECE_QUEEN;
+                    }
+
+                    tmp.board[dr][df] = moving;
+
+                    // Si después de este movimiento el rey de 'side' NO está en jaque,
+                    // entonces existe al menos una jugada legal.
+                    if (!is_king_in_check(&tmp, side)) {
+                        return 1;
+                    }
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
 // Actualiza los derechos de enroque cuando una pieza de 'side' se mueve
 static void update_castling_rights_on_move(Board *b,
                                            Color side,
@@ -1035,6 +1187,23 @@ static int apply_castling(Board *b,
 
     return 0;
 }
+
+// Evalúa el estado de la posición para el bando 'side_to_move'
+PositionStatus board_evaluate_status(const Board *b, Color side_to_move)
+{
+    if (!b || side_to_move == COLOR_NONE) {
+        return POSITION_NORMAL;
+    }
+
+    int in_check  = is_king_in_check(b, side_to_move);
+    int has_moves = has_any_legal_move(b, side_to_move);
+
+    if (in_check && has_moves)  return POSITION_CHECK;
+    if (in_check && !has_moves) return POSITION_CHECKMATE;
+    if (!in_check && !has_moves) return POSITION_STALEMATE;
+    return POSITION_NORMAL;
+}
+
 
 
 int board_apply_move(Board *b,
@@ -1263,6 +1432,45 @@ int board_apply_move(Board *b,
                  "Movimiento ilegal: el rey quedaría en jaque tras %s", mv->raw);
         return -1;
     }
+
+    // 8) Validar coherencia de jaque y jaque mate
+    Color enemy = (side_to_move == COLOR_WHITE) ? COLOR_BLACK : COLOR_WHITE;
+    int enemy_in_check   = is_king_in_check(&tmp, enemy);
+    int enemy_has_moves  = has_any_legal_move(&tmp, enemy);
+
+    int expect_check = (mv->is_check || mv->is_mate);
+
+    // Caso 1: se marcó + o # pero el rey enemigo NO está en jaque
+    if (expect_check && !enemy_in_check) {
+        snprintf(error_msg, error_msg_size,
+                 "Movimiento %s está anotado como jaque/jaque mate, "
+                 "pero el rey enemigo no está en jaque.", mv->raw);
+        return -1;
+    }
+
+    // Caso 2: NO se marcó + ni # pero el rey enemigo SÍ está en jaque
+    if (!expect_check && enemy_in_check) {
+        snprintf(error_msg, error_msg_size,
+                 "Movimiento %s da jaque, pero no está marcado con '+' o '#'.",
+                 mv->raw);
+        return -1;
+    }
+
+    // Caso 3: se marcó # pero NO es jaque mate (tiene jugadas legales)
+    if (mv->is_mate && enemy_in_check && enemy_has_moves) {
+        snprintf(error_msg, error_msg_size,
+                 "Movimiento %s está anotado como jaque mate ('#'), "
+                 "pero el rival aún tiene movimientos legales.", mv->raw);
+        return -1;
+    }
+
+    // Caso 4: NO se marcó # pero en realidad es jaque mate
+    if (!mv->is_mate && enemy_in_check && !enemy_has_moves) {
+        snprintf(error_msg, error_msg_size,
+                 "Movimiento %s produce jaque mate, pero no está marcado con '#'.",
+                 mv->raw);
+        return -1;
+    }
     
     // 8) Si es legal, copiar tablero temporal al real
     *b = tmp;
@@ -1270,9 +1478,7 @@ int board_apply_move(Board *b,
     return 0;
 }
 
-
-
-// Helper interno: devuelve un carácter para imprimir la pieza
+// Convierte una pieza en su representación de carácter para impresión
 static char piece_to_char(const Piece *p) {
     if (!p || p->type == PIECE_NONE) return '.';
 
@@ -1295,8 +1501,7 @@ static char piece_to_char(const Piece *p) {
     return c;
 }
 
-/* Imprime el tablero desde la perspectiva normal:
-   8 ... 1 en vertical, a..h en horizontal */
+// Imprime el tablero en la consola
 void board_print(const Board *b) {
     if (!b) return;
 

@@ -43,6 +43,16 @@ typedef struct {
     int en_passant_rank;
 } Board;
 
+// Estado de la posición
+typedef enum {
+    POSITION_NORMAL,
+    POSITION_CHECK,
+    POSITION_CHECKMATE,
+    POSITION_STALEMATE
+} PositionStatus;
+
+PositionStatus board_evaluate_status(const Board *b, Color side_to_move);
+
 
 // Convierte a index
 int file_to_index(char file);
@@ -50,6 +60,8 @@ int rank_to_index(char rank);
 
 // Inicializa el tablero
 void board_init_start(Board *b);
+
+void board_init_stalemate_test(Board *b);
 
 // Imprime el tablero 
 void board_print(const Board *b);
@@ -65,18 +77,3 @@ int board_apply_move(Board *b,
                      size_t error_msg_size);
 
 #endif 
-
-// int can_pawn_move(const Board *b, int sr, int sf, int dr, int df,
-//                   const MoveAST *mv, Color side);
-
-// int can_knight_move(...);
-// int can_bishop_move(...);
-// int can_rook_move(...);
-// int can_queen_move(...);
-// int can_king_move(...);
-
-
-// int can_piece_move(const Board *b,
-//                    int sr, int sf, int dr, int df,
-//                    const MoveAST *mv,
-//                    Color side);
