@@ -108,6 +108,155 @@ void board_init_stalemate_test(Board *b)
     b->en_passant_rank = -1;
 }
 
+// Valida si la casilla (r,f) está atacada por el bando 'by_side'
+// 1 = está atacada
+// 0 = no está atacada
+static int is_square_attacked(const Board *b, int r, int f, Color by_side)
+{
+    if (!b) return 0;
+
+    Color enemy = by_side;
+
+    // 1) Ataques de peones
+    if (enemy == COLOR_WHITE) {
+        // Peón blanco ataca (r+1, f-1) y (r+1, f+1)
+        int pr = r - 1;
+        if (pr >= 0) {
+            if (f - 1 >= 0) {
+                const Piece *p = &b->board[pr][f-1];
+                if (p->color == COLOR_WHITE && p->type == PIECE_PAWN) return 1;
+            }
+            if (f + 1 < 8) {
+                const Piece *p = &b->board[pr][f+1];
+                if (p->color == COLOR_WHITE && p->type == PIECE_PAWN) return 1;
+            }
+        }
+    } else if (enemy == COLOR_BLACK) {
+        // Peón negro ataca (r-1, f-1) y (r-1, f+1)
+        int pr = r + 1;
+        if (pr < 8) {
+            if (f - 1 >= 0) {
+                const Piece *p = &b->board[pr][f-1];
+                if (p->color == COLOR_BLACK && p->type == PIECE_PAWN) return 1;
+            }
+            if (f + 1 < 8) {
+                const Piece *p = &b->board[pr][f+1];
+                if (p->color == COLOR_BLACK && p->type == PIECE_PAWN) return 1;
+            }
+        }
+    }
+
+    // 2) Ataques de caballos 
+    const int knight_moves[8][2] = {
+        { 2, 1}, { 2,-1}, {-2, 1}, {-2,-1},
+        { 1, 2}, { 1,-2}, {-1, 2}, {-1,-2}
+    };
+    // Recorre los posibles movimientos del caballo
+    for (int k = 0; k < 8; ++k) {
+        int rr = r + knight_moves[k][0];
+        int ff = f + knight_moves[k][1];
+        if (rr < 0 || rr >= 8 || ff < 0 || ff >= 8) continue;
+        const Piece *p = &b->board[rr][ff];
+        if (p->color == enemy && p->type == PIECE_KNIGHT) return 1;
+    }
+
+    // 3) Ataques en líneas rectas (torres y damas)
+    const int dirs_straight[4][2] = {
+        { 1, 0}, {-1, 0}, { 0, 1}, { 0,-1}
+    };
+    // Recorre las 4 direcciones rectas
+    for (int d = 0; d < 4; ++d) {
+        int dr = dirs_straight[d][0];
+        int df = dirs_straight[d][1];
+        int rr = r + dr;
+        int ff = f + df;
+        // Avanza en esa dirección hasta que se salga del tablero o encuentre una pieza
+        while (rr >= 0 && rr < 8 && ff >= 0 && ff < 8) {
+            const Piece *p = &b->board[rr][ff];
+            if (p->type != PIECE_NONE) {
+                if (p->color == enemy &&
+                    (p->type == PIECE_ROOK || p->type == PIECE_QUEEN)) {
+                    return 1;
+                }
+                break; // pieza bloquea el ataque
+            }
+            rr += dr;
+            ff += df;
+        }
+    }
+
+    // 4) Ataques en diagonales (alfiles y damas)
+    const int dirs_diag[4][2] = {
+        { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1}
+    };
+    // Recorre las 4 direcciones diagonales
+    for (int d = 0; d < 4; ++d) {
+        int dr = dirs_diag[d][0];
+        int df = dirs_diag[d][1];
+        int rr = r + dr;
+        int ff = f + df;
+        // Avanza en esa dirección hasta que se salga del tablero o encuentre una pieza
+        while (rr >= 0 && rr < 8 && ff >= 0 && ff < 8) {
+            const Piece *p = &b->board[rr][ff];
+            if (p->type != PIECE_NONE) {
+                if (p->color == enemy &&
+                    (p->type == PIECE_BISHOP || p->type == PIECE_QUEEN)) {
+                    return 1;
+                }
+                break;
+            }
+            rr += dr;
+            ff += df;
+        }
+    }
+
+    // 5) Ataques del rey enemigo 
+    for (int dr = -1; dr <= 1; ++dr) {
+        for (int df = -1; df <= 1; ++df) {
+            if (dr == 0 && df == 0) continue;
+            int rr = r + dr;
+            int ff = f + df;
+            if (rr < 0 || rr >= 8 || ff < 0 || ff >= 8) continue;
+            const Piece *p = &b->board[rr][ff];
+            if (p->color == enemy && p->type == PIECE_KING) {
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+// Verifica si el rey del bando del color 'side' está en jaque
+// 1 = en jaque
+// 0 = no en jaque
+static int is_king_in_check(const Board *b, Color side)
+{
+    if (!b || side == COLOR_NONE) return 0;
+
+    int king_r = -1, king_f = -1;
+
+    // Buscar al rey de 'side' en el tablero
+    for (int r = 0; r < 8; ++r) {
+        for (int f = 0; f < 8; ++f) {
+            const Piece *p = &b->board[r][f];
+            if (p->color == side && p->type == PIECE_KING) {
+                king_r = r;
+                king_f = f;
+                break;
+            }
+        }
+        if (king_r != -1) break;
+    }
+
+    if (king_r == -1) {
+        // Posición ilegal (no hay rey), pero por ahora devolvemos "no en jaque"
+        return 0;
+    }
+
+    Color enemy = (side == COLOR_WHITE) ? COLOR_BLACK : COLOR_WHITE;
+    return is_square_attacked(b, king_r, king_f, enemy);
+}
 
 // Convierte el char de MoveAST.piece a enum PieceType
 static PieceType piece_type_from_char(char c) {
@@ -204,6 +353,20 @@ static int find_knight_source(const Board *b,
 
             /* ¿puede este caballo ir al destino? */
             if (!can_knight_move(b, r, f, dr, df, mv->is_capture, side_to_move)) {
+                continue;
+            }
+
+            // Simular el movimiento y verificar si deja al rey en jaque
+            Board tmp = *b;
+
+            Piece moving = tmp.board[r][f];
+            Piece captured = tmp.board[dr][df];  // puede ser NONE
+
+            tmp.board[r][f].type  = PIECE_NONE;
+            tmp.board[r][f].color = COLOR_NONE;
+            tmp.board[dr][df]     = moving;
+
+            if (is_king_in_check(&tmp, side_to_move)) {
                 continue;
             }
 
@@ -395,9 +558,32 @@ static int find_pawn_source(const Board *b,
                     const Piece *ep = &b->board[pawn_rank][df];
 
                     if (ep->type == PIECE_PAWN && ep->color != side_to_move) {
+
+                        // 🔍 Simular la captura al paso para ver si deja al rey en jaque
+                        Board tmp = *b;
+                        
+                        Piece moving = tmp.board[r][f];
+
+                        tmp.board[r][f].type  = PIECE_NONE;
+                        tmp.board[r][f].color = COLOR_NONE;
+
+                        tmp.board[pawn_rank][df].type  = PIECE_NONE;
+                        tmp.board[pawn_rank][df].color = COLOR_NONE;
+
+                        tmp.board[dr][df] = moving;
+
+                        // Verificar si el rey queda en jaque
+                        if (is_king_in_check(&tmp, side_to_move)) {
+                            goto skip_en_passant_candidate;
+                        }
+
+                        
                         *out_sr = r;
                         *out_sf = f;
-                        return 0; // origen encontrado
+                        return 0;
+
+                    skip_en_passant_candidate:
+                        ;
                     }
                 }
             }
@@ -408,6 +594,20 @@ static int find_pawn_source(const Board *b,
                                side_to_move,
                                is_promotion_requested))
                 continue;
+
+            // Simular movimiento de peón
+            Board tmp = *b;
+            Piece moving  = tmp.board[r][f];
+            Piece captured = tmp.board[dr][df]; // o NONE
+
+            tmp.board[r][f].type  = PIECE_NONE;
+            tmp.board[r][f].color = COLOR_NONE;
+            tmp.board[dr][df]     = moving;
+
+            // Validar si la movida deja al rey en jaque
+            if (is_king_in_check(&tmp, side_to_move)) {
+                continue;
+            }
 
             found++;
             best_sr = r;
@@ -525,6 +725,20 @@ static int find_bishop_source(const Board *b,
             if (!can_bishop_move(b, r, f, dr, df, mv->is_capture, side))
                 continue;
 
+            // Simular movimiento
+            Board tmp = *b;
+            Piece moving  = tmp.board[r][f];
+            Piece captured = tmp.board[dr][df];
+
+            tmp.board[r][f].type  = PIECE_NONE;
+            tmp.board[r][f].color = COLOR_NONE;
+            tmp.board[dr][df]     = moving;
+
+            // Validar si la movida deja al rey en jaque
+            if (is_king_in_check(&tmp, side)) {
+                continue;
+            }
+
             found++;
             *out_sr = r;
             *out_sf = f;
@@ -599,6 +813,19 @@ static int find_rook_source(const Board *b,
 
             if (!can_rook_move(b, r, f, dr, df, mv->is_capture, side))
                 continue;
+
+            Board tmp = *b;
+            Piece moving  = tmp.board[r][f];
+            Piece captured = tmp.board[dr][df];
+
+            tmp.board[r][f].type  = PIECE_NONE;
+            tmp.board[r][f].color = COLOR_NONE;
+            tmp.board[dr][df]     = moving;
+
+            // Validar si la movida deja al rey en jaque
+            if (is_king_in_check(&tmp, side)) {
+                continue;
+            }
 
             found++;
             *out_sr = r;
@@ -676,6 +903,20 @@ static int find_queen_source(const Board *b,
             if (!can_queen_move(b, r, f, dr, df, mv->is_capture, side))
                 continue;
 
+            // Simular movimiento
+            Board tmp = *b;
+            Piece moving  = tmp.board[r][f];
+            Piece captured = tmp.board[dr][df];
+
+            tmp.board[r][f].type  = PIECE_NONE;
+            tmp.board[r][f].color = COLOR_NONE;
+            tmp.board[dr][df]     = moving;
+
+            // Validar si la movida deja al rey en jaque
+            if (is_king_in_check(&tmp, side)) {
+                continue;
+            }
+
             found++;
             *out_sr = r;
             *out_sf = f;
@@ -722,156 +963,6 @@ static int can_king_move(const Board *b,
     }
 
     return 1;
-}
-
-// Valida si la casilla (r,f) está atacada por el bando 'by_side'
-// 1 = está atacada
-// 0 = no está atacada
-static int is_square_attacked(const Board *b, int r, int f, Color by_side)
-{
-    if (!b) return 0;
-
-    Color enemy = by_side;
-
-    // 1) Ataques de peones
-    if (enemy == COLOR_WHITE) {
-        // Peón blanco ataca (r+1, f-1) y (r+1, f+1)
-        int pr = r - 1;
-        if (pr >= 0) {
-            if (f - 1 >= 0) {
-                const Piece *p = &b->board[pr][f-1];
-                if (p->color == COLOR_WHITE && p->type == PIECE_PAWN) return 1;
-            }
-            if (f + 1 < 8) {
-                const Piece *p = &b->board[pr][f+1];
-                if (p->color == COLOR_WHITE && p->type == PIECE_PAWN) return 1;
-            }
-        }
-    } else if (enemy == COLOR_BLACK) {
-        // Peón negro ataca (r-1, f-1) y (r-1, f+1)
-        int pr = r + 1;
-        if (pr < 8) {
-            if (f - 1 >= 0) {
-                const Piece *p = &b->board[pr][f-1];
-                if (p->color == COLOR_BLACK && p->type == PIECE_PAWN) return 1;
-            }
-            if (f + 1 < 8) {
-                const Piece *p = &b->board[pr][f+1];
-                if (p->color == COLOR_BLACK && p->type == PIECE_PAWN) return 1;
-            }
-        }
-    }
-
-    // 2) Ataques de caballos 
-    const int knight_moves[8][2] = {
-        { 2, 1}, { 2,-1}, {-2, 1}, {-2,-1},
-        { 1, 2}, { 1,-2}, {-1, 2}, {-1,-2}
-    };
-    // Recorre los posibles movimientos del caballo
-    for (int k = 0; k < 8; ++k) {
-        int rr = r + knight_moves[k][0];
-        int ff = f + knight_moves[k][1];
-        if (rr < 0 || rr >= 8 || ff < 0 || ff >= 8) continue;
-        const Piece *p = &b->board[rr][ff];
-        if (p->color == enemy && p->type == PIECE_KNIGHT) return 1;
-    }
-
-    // 3) Ataques en líneas rectas (torres y damas)
-    const int dirs_straight[4][2] = {
-        { 1, 0}, {-1, 0}, { 0, 1}, { 0,-1}
-    };
-    // Recorre las 4 direcciones rectas
-    for (int d = 0; d < 4; ++d) {
-        int dr = dirs_straight[d][0];
-        int df = dirs_straight[d][1];
-        int rr = r + dr;
-        int ff = f + df;
-        // Avanza en esa dirección hasta que se salga del tablero o encuentre una pieza
-        while (rr >= 0 && rr < 8 && ff >= 0 && ff < 8) {
-            const Piece *p = &b->board[rr][ff];
-            if (p->type != PIECE_NONE) {
-                if (p->color == enemy &&
-                    (p->type == PIECE_ROOK || p->type == PIECE_QUEEN)) {
-                    return 1;
-                }
-                break; // pieza bloquea el ataque
-            }
-            rr += dr;
-            ff += df;
-        }
-    }
-
-    // 4) Ataques en diagonales (alfiles y damas)
-    const int dirs_diag[4][2] = {
-        { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1}
-    };
-    // Recorre las 4 direcciones diagonales
-    for (int d = 0; d < 4; ++d) {
-        int dr = dirs_diag[d][0];
-        int df = dirs_diag[d][1];
-        int rr = r + dr;
-        int ff = f + df;
-        // Avanza en esa dirección hasta que se salga del tablero o encuentre una pieza
-        while (rr >= 0 && rr < 8 && ff >= 0 && ff < 8) {
-            const Piece *p = &b->board[rr][ff];
-            if (p->type != PIECE_NONE) {
-                if (p->color == enemy &&
-                    (p->type == PIECE_BISHOP || p->type == PIECE_QUEEN)) {
-                    return 1;
-                }
-                break;
-            }
-            rr += dr;
-            ff += df;
-        }
-    }
-
-    // 5) Ataques del rey enemigo 
-    for (int dr = -1; dr <= 1; ++dr) {
-        for (int df = -1; df <= 1; ++df) {
-            if (dr == 0 && df == 0) continue;
-            int rr = r + dr;
-            int ff = f + df;
-            if (rr < 0 || rr >= 8 || ff < 0 || ff >= 8) continue;
-            const Piece *p = &b->board[rr][ff];
-            if (p->color == enemy && p->type == PIECE_KING) {
-                return 1;
-            }
-        }
-    }
-
-    return 0;
-}
-
-// Verifica si el rey del bando del color 'side' está en jaque
-// 1 = en jaque
-// 0 = no en jaque
-static int is_king_in_check(const Board *b, Color side)
-{
-    if (!b || side == COLOR_NONE) return 0;
-
-    int king_r = -1, king_f = -1;
-
-    // Buscar al rey de 'side' en el tablero
-    for (int r = 0; r < 8; ++r) {
-        for (int f = 0; f < 8; ++f) {
-            const Piece *p = &b->board[r][f];
-            if (p->color == side && p->type == PIECE_KING) {
-                king_r = r;
-                king_f = f;
-                break;
-            }
-        }
-        if (king_r != -1) break;
-    }
-
-    if (king_r == -1) {
-        // Posición ilegal (no hay rey), pero por ahora devolvemos "no en jaque"
-        return 0;
-    }
-
-    Color enemy = (side == COLOR_WHITE) ? COLOR_BLACK : COLOR_WHITE;
-    return is_square_attacked(b, king_r, king_f, enemy);
 }
 
 static int has_any_legal_move(const Board *b, Color side)
