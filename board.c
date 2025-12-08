@@ -1300,14 +1300,24 @@ static char piece_to_char(const Piece *p) {
 void board_print(const Board *b) {
     if (!b) return;
 
-    printf("\n  Tablero actual:\n\n");
+    printf("\n        TABLERO ACTUAL\n\n");
+
+    // Línea superior
+    printf("    +---+---+---+---+---+---+---+---+\n");
+
     for (int r = 7; r >= 0; --r) {
-        printf("%d  ", r + 1);   /* número de fila (1..8) */
+        printf(" %d  |", r + 1);
+
         for (int f = 0; f < 8; ++f) {
             char c = piece_to_char(&b->board[r][f]);
-            printf("%c ", c);
+            if (c == '.') c = ' ';  // casilla vacía más limpia
+            printf(" %c |", c);
         }
-        printf("\n");
+
+        printf("\n    +---+---+---+---+---+---+---+---+\n");
     }
-    printf("\n   a b c d e f g h\n\n");
+
+    // Letras de columnas
+    printf("      a   b   c   d   e   f   g   h\n\n");
 }
+
