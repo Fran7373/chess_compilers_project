@@ -1297,27 +1297,49 @@ static char piece_to_char(const Piece *p) {
 
 /* Imprime el tablero desde la perspectiva normal:
    8 ... 1 en vertical, a..h en horizontal */
+
+   // ANSI Colors
+#define RESET   "\x1b[0m"
+#define FG_WHITE "\x1b[97m"
+#define FG_BLACK "\x1b[30m"
+#define BG_WHITE "\x1b[47m"
+#define BG_BLACK "\x1b[40m"
+
 void board_print(const Board *b) {
     if (!b) return;
 
-    printf("\n        TABLERO ACTUAL\n\n");
-
-    // Línea superior
-    printf("    +---+---+---+---+---+---+---+---+\n");
+    printf("\n            TABLERO ACTUAL\n\n");
 
     for (int r = 7; r >= 0; --r) {
-        printf(" %d  |", r + 1);
+        printf(" %d  ", r+1);
 
         for (int f = 0; f < 8; ++f) {
-            char c = piece_to_char(&b->board[r][f]);
-            if (c == '.') c = ' ';  // casilla vacía más limpia
-            printf(" %c |", c);
+
+            Piece p = b->board[r][f];
+            char c = piece_to_char(&p);
+
+            // Colores de casilla: alternados
+            const char *bg = ((r + f) % 2 == 0) ? BG_WHITE : BG_BLACK;
+
+            // Colores de pieza
+            const char *fg;
+            if (p.type == PIECE_NONE) {
+                fg = ((r + f) % 2 == 0) ? FG_BLACK : FG_WHITE;
+                c = ' ';  // casilla vacía más limpia
+            } else if (p.color == COLOR_WHITE) {
+                fg = FG_BLACK;  // piezas blancas → texto negro
+            } else {
+                fg = FG_WHITE;  // piezas negras → texto blanco
+            }
+
+            // Dibuja una casilla estilo [pieza]
+            printf("%s%s %c %s", bg, fg, c, RESET);
         }
 
-        printf("\n    +---+---+---+---+---+---+---+---+\n");
+        printf("\n");
     }
 
-    // Letras de columnas
-    printf("      a   b   c   d   e   f   g   h\n\n");
+    printf("\n      a  b  c  d  e  f  g  h\n\n");
 }
+
 
