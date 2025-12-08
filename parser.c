@@ -1,3 +1,4 @@
+// src/parser.c  (actualizado: soporte para PIECE FILE RANK FILE RANK y PIECE FILE RANK x FILE RANK)
 #include "parser.h"
 #include <string.h>
 #include <stdio.h>
@@ -73,60 +74,77 @@ int parse_move(const TokenList *tokens, MoveAST *out) {
         // movimiento de pieza
         out->piece = t->text[0];
         i++;
-        // ahora viene una combinatoria de:
-        // posibles desambiguaciones: FILE, RANK, FILE+RANK
-        // posible captura: TK_CAPTURE
-        // destino: FILE RANK
-        // posible promocion (raro para piezas) y check/mate
+        // tokens próximos
         const Token *a = tok_at(tokens, i);
         const Token *b = tok_at(tokens, i+1);
         const Token *c = tok_at(tokens, i+2);
+        const Token *d = tok_at(tokens, i+3);
+        const Token *e = tok_at(tokens, i+4);
 
-        // patrones a considerar (prioridad):
-        // 1) FILE FILE RANK  -> src_file, dest_file, dest_rank  (ej. Raxb1 -> a b 1)
-        if (a && b && c && a->type == TK_FILE && b->type == TK_FILE && c->type == TK_RANK) {
+        // ------------------------------------------------------------
+        // NUEVO: Patrón FILE RANK FILE RANK  (ej. Qh4e1)  -> src_file+src_rank, dest_file+dest_rank
+        // y variante con captura: FILE RANK CAPTURE FILE RANK (Qh4xe1)
+        // ------------------------------------------------------------
+        if (a && b && c && d && a->type == TK_FILE && b->type == TK_RANK && c->type == TK_FILE && d->type == TK_RANK) {
+            out->src_file = a->text[0];
+            out->src_rank = b->text[0];
+            out->dest_file = c->text[0];
+            out->dest_rank = d->text[0];
+            i += 4;
+        } else if (a && b && c && d && e && a->type == TK_FILE && b->type == TK_RANK && c->type == TK_CAPTURE && d->type == TK_FILE && e->type == TK_RANK) {
+            // Qh4xe1
+            out->src_file = a->text[0];
+            out->src_rank = b->text[0];
+            out->is_capture = 1;
+            out->dest_file = d->text[0];
+            out->dest_rank = e->text[0];
+            i += 5;
+        }
+        // ------------------------------------------------------------
+        // Patrón FILE FILE RANK  -> src_file, dest_file, dest_rank  (ej. Raxb1 -> a b 1)
+        else if (a && b && c && a->type == TK_FILE && b->type == TK_FILE && c->type == TK_RANK) {
             out->src_file = a->text[0];
             out->dest_file = b->text[0];
             out->dest_rank = c->text[0];
             i += 3;
         }
-        // 2) RANK FILE RANK -> src_rank, dest_file, dest_rank (ej. N1c3)
+        // RANK FILE RANK -> src_rank, dest_file, dest_rank (ej. N1c3)
         else if (a && b && c && a->type == TK_RANK && b->type == TK_FILE && c->type == TK_RANK) {
             out->src_rank = a->text[0];
             out->dest_file = b->text[0];
             out->dest_rank = c->text[0];
             i += 3;
         }
-        // 3) FILE CAPTURE FILE RANK -> src_file, capture, dest (ej. Raxb1)
-        else if (a && b && c && a->type == TK_FILE && b->type == TK_CAPTURE && c->type == TK_FILE && tok_at(tokens, i+3) && tok_at(tokens, i+3)->type == TK_RANK) {
+        // FILE CAPTURE FILE RANK -> src_file, capture, dest (ej. Raxb1)
+        else if (a && b && c && d && a->type == TK_FILE && b->type == TK_CAPTURE && c->type == TK_FILE && d->type == TK_RANK) {
             out->src_file = a->text[0];
             out->is_capture = 1;
             out->dest_file = c->text[0];
-            out->dest_rank = tok_at(tokens, i+3)->text[0];
+            out->dest_rank = d->text[0];
             i += 4;
         }
-        // 4) CAPTURE FILE RANK -> capture + dest (sin desambiguación) e.g. Nxd4
+        // CAPTURE FILE RANK -> capture + dest (sin desambiguación) e.g. Nxd4
         else if (a && a->type == TK_CAPTURE && b && b->type == TK_FILE && c && c->type == TK_RANK) {
             out->is_capture = 1;
             out->dest_file = b->text[0];
             out->dest_rank = c->text[0];
             i += 3;
         }
-        // 5) FILE RANK -> destino directo (ej. Nf3)
+        // FILE RANK -> destino directo (ej. Nf3)
         else if (a && b && a->type == TK_FILE && b->type == TK_RANK) {
             out->dest_file = a->text[0];
             out->dest_rank = b->text[0];
             i += 2;
         }
-        // 6) Nfxe5 or similar: FILE CAPTURE FILE RANK (desambiguación antes de 'x')
+        // caso: desambiguación antes del 'x', e.g. Nfxe5  (handled as a + b == FILE + CAPTURE above but ensure)
         else if (a && b && a->type == TK_FILE && b->type == TK_CAPTURE) {
             const Token *c2 = tok_at(tokens, i+2);
-            const Token *d = tok_at(tokens, i+3);
-            if (c2 && c2->type == TK_FILE && d && d->type == TK_RANK) {
+            const Token *d2 = tok_at(tokens, i+3);
+            if (c2 && c2->type == TK_FILE && d2 && d2->type == TK_RANK) {
                 out->src_file = a->text[0];
                 out->is_capture = 1;
                 out->dest_file = c2->text[0];
-                out->dest_rank = d->text[0];
+                out->dest_rank = d2->text[0];
                 i += 4;
             } else {
                 fprintf(stderr, "parse_move: sintaxis inesperada tras desambiguación y captura.\n");
