@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 // Definiciones para el análisis sintáctico de movimientos de ajedrez
-typedef enum {
+typedef enum { //sasasasas
     TK_UNKNOWN,
     TK_PIECE,        // K Q R B N
     TK_FILE,         // a-h
