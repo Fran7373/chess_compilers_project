@@ -26,7 +26,7 @@ char *square_to_san(char *buf, const char *src, const char *dst, const Board *b)
 
     char pieceChar;
     switch (p->type) {
-        case PIECE_PAWN:   pieceChar = 0;   break; 
+        case PIECE_PAWN:   pieceChar = 0;   break;
         case PIECE_KNIGHT: pieceChar = 'N'; break;
         case PIECE_BISHOP: pieceChar = 'B'; break;
         case PIECE_ROOK:   pieceChar = 'R'; break;
@@ -39,9 +39,6 @@ char *square_to_san(char *buf, const char *src, const char *dst, const Board *b)
 
     int is_capture = (dest->type != PIECE_NONE);
 
-    // ------------------------------
-    // PEONES
-    // ------------------------------
     if (p->type == PIECE_PAWN) {
         if (is_capture) {
             snprintf(buf, 16, "%c%c%c%c", src[0], 'x', dst[0], dst[1]);
@@ -51,9 +48,6 @@ char *square_to_san(char *buf, const char *src, const char *dst, const Board *b)
         return buf;
     }
 
-    // ------------------------------
-    // PIEZAS (N, B, R, Q, K)
-    // ------------------------------
     if (is_capture) {
         snprintf(buf, 16, "%c%c%c%c", pieceChar, 'x', dst[0], dst[1]);
     } else {
@@ -64,28 +58,7 @@ char *square_to_san(char *buf, const char *src, const char *dst, const Board *b)
 }
 
 // =============================================================
-//   Función auxiliar para imprimir el AST
-// =============================================================
-static void print_moveast(const MoveAST *m) {
-    if (!m) return;
-    printf("Parsed MoveAST:\n");
-    printf("  raw: \"%s\"\n", m->raw[0] ? m->raw : "(empty)");
-    printf("  piece: %c\n", m->piece ? m->piece : '-');
-    printf("  src_file: %c\n", m->src_file ? m->src_file : '-');
-    printf("  src_rank: %c\n", m->src_rank ? m->src_rank : '-');
-    printf("  dest_file: %c\n", m->dest_file ? m->dest_file : '-');
-    printf("  dest_rank: %c\n", m->dest_rank ? m->dest_rank : '-');
-    printf("  is_capture: %d\n", m->is_capture);
-    printf("  promotion: %c\n", m->promotion ? m->promotion : '-');
-    printf("  is_castle_short: %d\n", m->is_castle_short);
-    printf("  is_castle_long: %d\n", m->is_castle_long);
-    printf("  is_check: %d\n", m->is_check);
-    printf("  is_mate: %d\n", m->is_mate);
-}
-
-
-// =============================================================
-//   MODO 1: Jugar usando origen/destino
+//   Jugar usando origen/destino
 // =============================================================
 void jugar_interfaz() {
 
@@ -95,6 +68,8 @@ void jugar_interfaz() {
     Color side_to_move = COLOR_WHITE;
 
     while (1) {
+
+        printf("\n(Escriba 0 para volver al menú)\n");
 
         if (side_to_move == COLOR_WHITE)
             printf("\n>>> Turno de las BLANCAS <<<\n");
@@ -106,8 +81,12 @@ void jugar_interfaz() {
         printf("Tomar ficha (ej: e2): ");
         scanf("%2s", src);
 
+        if (strcmp(src, "0") == 0) return;
+
         printf("Mover ficha (ej: e4): ");
         scanf("%2s", dst);
+
+        if (strcmp(dst, "0") == 0) return;
 
         square_to_san(san, src, dst, &board);
         printf("SAN generado: %s\n", san);
@@ -135,10 +114,8 @@ void jugar_interfaz() {
     }
 }
 
-
-
 // =============================================================
-//   MODO 2: Jugar ingresando SAN directamente
+//   Jugar ingresando SAN directamente
 // =============================================================
 void jugar_san() {
 
@@ -150,6 +127,8 @@ void jugar_san() {
     char input[256];
 
     while (1) {
+
+        printf("\n(Escriba 0 para volver al menú)\n");
 
         if (side_to_move == COLOR_WHITE)
             printf("\n>>> Turno de las BLANCAS <<<\n");
@@ -164,6 +143,8 @@ void jugar_san() {
         }
 
         input[strcspn(input, "\r\n")] = 0;
+
+        if (strcmp(input, "0") == 0) return;
 
         TokenList tl;
         tokenize(input, &tl);
@@ -188,16 +169,16 @@ void jugar_san() {
     }
 }
 
-
-
 // =============================================================
-//   MODO 3: Cargar un archivo PGN
+//   Cargar PGN
 // =============================================================
 void cargar_pgn() {
 
     char filename[256];
-    printf("Nombre del archivo PGN: ");
+    printf("Nombre del archivo PGN (0 para volver): ");
     scanf("%255s", filename);
+
+    if (strcmp(filename, "0") == 0) return;
 
     FILE *f = fopen(filename, "r");
     if (!f) {
@@ -214,7 +195,7 @@ void cargar_pgn() {
 
     while (fscanf(f, "%63s", san) == 1) {
 
-        if (strchr(san, '.')) continue; // saltar "1.", "2.", etc.
+        if (strchr(san, '.')) continue;
 
         printf("\nLeyendo movimiento: %s\n", san);
 
@@ -242,13 +223,11 @@ void cargar_pgn() {
     fclose(f);
 }
 
-
-
 // =============================================================
 //                 MENU PRINCIPAL
 // =============================================================
 int main(void) {
-
+    system("chcp 65001 > nul");
     int opcion = 0;
 
     while (1) {
@@ -264,7 +243,7 @@ int main(void) {
             return 0;
         }
 
-        getchar(); // limpiar salto de linea
+        getchar(); // limpiar salto de línea pendiente
 
         if (opcion == 1)      jugar_interfaz();
         else if (opcion == 2) jugar_san();

@@ -1273,26 +1273,31 @@ int board_apply_move(Board *b,
 
 
 // Helper interno: devuelve un carácter para imprimir la pieza
-static char piece_to_char(const Piece *p) {
-    if (!p || p->type == PIECE_NONE) return '.';
+static const char* piece_to_char(const Piece *p) {
+    if (!p || p->type == PIECE_NONE) return ".";  // casilla vacía
 
-    char c = '?';
     switch (p->type) {
-        case PIECE_PAWN:   c = 'P'; break;
-        case PIECE_KNIGHT: c = 'N'; break;
-        case PIECE_BISHOP: c = 'B'; break;
-        case PIECE_ROOK:   c = 'R'; break;
-        case PIECE_QUEEN:  c = 'Q'; break;
-        case PIECE_KING:   c = 'K'; break;
-        default:           c = '?'; break;
+        case PIECE_PAWN:
+            if (p->color == COLOR_WHITE) return "♙";
+            else                         return "♟";
+        case PIECE_KNIGHT:
+            if (p->color == COLOR_WHITE) return "♘";
+            else                         return "♞";
+        case PIECE_BISHOP:
+            if (p->color == COLOR_WHITE) return "♗";
+            else                         return "♝";
+        case PIECE_ROOK:
+            if (p->color == COLOR_WHITE) return "♖";
+            else                         return "♜";
+        case PIECE_QUEEN:
+            if (p->color == COLOR_WHITE) return "♕";
+            else                         return "♛";
+        case PIECE_KING:
+            if (p->color == COLOR_WHITE) return "♔";
+            else                         return "♚";
     }
 
-    /* Piezas negras en minúscula, blancas en mayúscula */
-    if (p->color == COLOR_BLACK) {
-        c = (char)(c + ('a' - 'A')); /* convertir a minúscula */
-    }
-
-    return c;
+    return "?";
 }
 
 /* Imprime el tablero desde la perspectiva normal:
@@ -1316,24 +1321,23 @@ void board_print(const Board *b) {
         for (int f = 0; f < 8; ++f) {
 
             Piece p = b->board[r][f];
-            char c = piece_to_char(&p);
+            const char *symbol = piece_to_char(&p);  // ✔️ AHORA ES UN STRING UNICODE
 
-            // Colores de casilla: alternados
+            // Colores de casilla
             const char *bg = ((r + f) % 2 == 0) ? BG_WHITE : BG_BLACK;
 
             // Colores de pieza
             const char *fg;
             if (p.type == PIECE_NONE) {
                 fg = ((r + f) % 2 == 0) ? FG_BLACK : FG_WHITE;
-                c = ' ';  // casilla vacía más limpia
+                symbol = " ";  // casilla vacía
             } else if (p.color == COLOR_WHITE) {
-                fg = FG_BLACK;  // piezas blancas → texto negro
+                fg = FG_BLACK;
             } else {
-                fg = FG_WHITE;  // piezas negras → texto blanco
+                fg = FG_WHITE;
             }
 
-            // Dibuja una casilla estilo [pieza]
-            printf("%s%s %c %s", bg, fg, c, RESET);
+            printf("%s%s %s %s", bg, fg, symbol, RESET);  // ✔️ IMPRIME STRING UTF-8
         }
 
         printf("\n");
