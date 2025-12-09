@@ -69,18 +69,19 @@ SISTEMA AMIGABLE CON EL USUSARIO Y OFRECE UNA METODOLOGIA ESPECIALIZZADA Y DIREC
 Para analisar Lexicamente la notación algebraica definimos los siguientes tokens
 
 ```C
-TK_UNKNOWN
-TK_PIECE
-TK_FILE
- TK_RANK
-TK_CAPTURE;
-TK_PROMOTE
-TK_PROMOTE_PIECE
-TK_CHECK
-TK_MATE
-TK_CASTLE_SHORT
-TK_CASTLE_LONG
-TK_END
+TK_UNKNOWN // Cualquier cosa que no reconozca el analizador lexico
+TK_PIECE //Las letras en mayúscula de las piezas K (Rey), Q (Dama), R (Torre), B (Alfil), N (Caballo) y P (Peón)
+         //Si bien cuando movemos el peón no escribimos la letra P, igual usamos el token como idientficador
+TK_FILE  //Columna del tablero que pueden ser de las letras a-h
+TK_RANK  //Fila del tablero que pueden ser los números entre 1-8
+TK_CAPTURE; // Token de captura x O x
+TK_PROMOTE //Simbolo =
+TK_PROMOTE_PIECE // Pieza que va despues del =
+TK_CHECK // Simbolo +
+TK_MATE // Simbolo #
+TK_CASTLE_SHORT // Enroque corto:0-0 o O-O
+TK_CASTLE_LONG // Enroque largo: 0-0 o O-O-O
+TK_END //Siempre se termina en este token
 ```
 
 
