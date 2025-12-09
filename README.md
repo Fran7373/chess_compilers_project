@@ -92,9 +92,6 @@ El analisis lexico es sencillo, ya que la notación SAN es muy especifica y limi
 
 #Formemos la gramatica 
 
-# Parser de Movimientos de Ajedrez
-
-## Gramática Formal (Notación Algebraica Estándar)
 
 ### Definición del Lenguaje
 
