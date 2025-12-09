@@ -383,7 +383,7 @@ Para ejecutar el programa:
 - [Reddit — Fuentes alternativas para descargar partidas en PGN](https://www.reddit.com/r/chess/comments/190vwtr/seeking_alternative_sources_where_to_download/?tl=es-419)
 - [Chess.com — Herramienta de análisis y exploración de partidas](https://www.chess.com/analysis/games)
 - [The Week in Chess — Repositorio anual de archivos PGN](https://theweekinchess.com/a-year-of-pgn-game-files)
-- [Wikipedia](https://theweekinchess.com/a-year-of-pgn-game-files)
+- [Wikipedia-Notación algebraica](es.wikipedia.org/wiki/Notación_algebraica)
 - **ChatGPT (OpenAI)** — Asistencia explicación técnica del proyecto.
 - **Claude (Anthropic)** — Herramienta de IA utilizada como recurso complementario para consultas y generación de texto.
 - **Parte II: Análisis Léxico**  
