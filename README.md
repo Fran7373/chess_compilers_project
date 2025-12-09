@@ -1,5 +1,6 @@
 # Proyecto Chess Compiler.
 
+![Alt text](./ajedrez-maravillosa-jugada.gif)
 
 El objetivo del proyecto es construir una aplicación con el lenguaje C/C++, el cual sea un analizador léxico, sintáctico y semántico que valide los movimientos de la notación algebraica del ajedrez y determine si el movimiento es:
 
@@ -396,3 +397,7 @@ Para ejecutar el programa:
   “22. Introduction to Semantic Analysis”  
   “23. Static vs Dynamic Typing / SELF_TYPE”  
   Curso de Compiladores — Universidad Nacional de Colombia, 2025-2.
+
+- **Imagen "Maravillosa jugada"**
+
+  [Maravillosa Jugada GIF](https://tenor.com/es/view/ajedrez-maravillosa-jugada-chess-gif-10863095)
