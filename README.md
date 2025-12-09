@@ -363,7 +363,6 @@ Contine la implementación del análisis semántico y las reglas de juego oficia
 
 Para una correcta visualización de caracteres en **Windows**, ejecute:
 
-    ```powershell
     $OutputEncoding = [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding```
 
 Para compilar el proyecto:
@@ -384,4 +383,16 @@ Para ejecutar el programa:
 - [Chess.com — Herramienta de análisis y exploración de partidas](https://www.chess.com/analysis/games)
 - [The Week in Chess — Repositorio anual de archivos PGN](https://theweekinchess.com/a-year-of-pgn-game-files)
 - **ChatGPT (OpenAI)** — Asistencia explicación técnica del proyecto.
+- **Claude (Anthropic)** — Herramienta de IA utilizada como recurso complementario para consultas y generación de texto.
+- **Parte II: Análisis Léxico**  
+  Curso de Compiladores — Universidad Nacional de Colombia, 2025-2.
 
+- **Parte III: Análisis Sintáctico I (Parsing Recursivo Descendente — Parsing Predictivo)**  
+  “12. Introduction to Parsing”  
+  “13. Context-free Grammars”  
+  Curso de Compiladores — Universidad Nacional de Colombia, 2025-2.
+
+- **Parte V: Análisis Semántico**  
+  “22. Introduction to Semantic Analysis”  
+  “23. Static vs Dynamic Typing / SELF_TYPE”  
+  Curso de Compiladores — Universidad Nacional de Colombia, 2025-2.
