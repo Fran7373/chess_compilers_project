@@ -373,3 +373,15 @@ Para compilar el proyecto:
 Para ejecutar el programa:
 
     ./chess
+
+
+
+## Referencias
+
+- [Chess.com — Definición y estructura del formato PGN](https://www-chess-com.translate.goog/terms/chess-pgn?_x_tr_sl=en&_x_tr_tl=es&_x_tr_hl=es&_x_tr_pto=tc)
+- [ChessCul — Explicación de la notación algebraica](https://chesscul.com/notacion-algebraica-ajedrez/)
+- [Reddit — Fuentes alternativas para descargar partidas en PGN](https://www.reddit.com/r/chess/comments/190vwtr/seeking_alternative_sources_where_to_download/?tl=es-419)
+- [Chess.com — Herramienta de análisis y exploración de partidas](https://www.chess.com/analysis/games)
+- [The Week in Chess — Repositorio anual de archivos PGN](https://theweekinchess.com/a-year-of-pgn-game-files)
+- **ChatGPT (OpenAI)** — Asistencia explicación técnica del proyecto.
+
