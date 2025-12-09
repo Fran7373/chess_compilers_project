@@ -9,10 +9,28 @@ El objetivo del proyecto es construir una aplicación con el lenguaje C/C++, el 
 - Produce un nuevo estado de tablero válido.
 
 
-##Escritura SAN
+## Escritura SAN
+
+Que es la escritura SAN?
 
 ## Ánalsis Lexico
 
+Para analisar Lexicamente la notación algebraica definimos los siguientes tokens
+
+```C
+TK_UNKNOWN
+TK_PIECE
+TK_FILE
+ TK_RANK
+TK_CAPTURE;
+TK_PROMOTE
+TK_PROMOTE_PIECE
+TK_CHECK
+TK_MATE
+TK_CASTLE_SHORT
+TK_CASTLE_LONG
+TK_END
+```
 
 
 
