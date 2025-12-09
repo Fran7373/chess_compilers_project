@@ -202,20 +202,7 @@ $$|L_{\text{enroque}}| = 4 \times 3 = 12$$
 
 $$|L_{\text{movimiento}}| \leq 6 \times 129 \times 2 \times 64 \times 5 \times 3 = 2{,}985{,}120$$
 
-## Uso
-
-```c
-#include "parser.h"
-
-TokenList tokens = tokenize("Nf3+");
-MoveAST move;
-
-if (parse_move(&tokens, &move) == 0) {
-    printf("Pieza: %c\n", move.piece);
-    printf("Destino: %c%c\n", move.dest_file, move.dest_rank);
-    printf("Jaque: %d\n", move.is_check);
-}
-```
+Esta misma gramatica es la que usamos en el código para verificar la sintaxis de los movimientos.
 
 
 
