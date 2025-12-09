@@ -203,8 +203,7 @@ $$|L_{\text{enroque}}| = 4 \times 3 = 12$$
 $$|L_{\text{movimiento}}| \leq 6 \times 129 \times 2 \times 64 \times 5 \times 3 = 2{,}985{,}120$$
 
 
-Esto es lo que validamos en el análisis sintáctico: verificamos que cada movimiento pertenezca al lenguaje formal LL
-L definido anteriormente. El parser recorre secuencialmente los tokens y valida que la estructura del movimiento corresponda exactamente a una de las producciones gramaticales especificadas.
+Esto es lo que validamos en el análisis sintáctico: verificamos que cada movimiento pertenezca al lenguaje formal $L$ definido anteriormente. El parser recorre secuencialmente los tokens y valida que la estructura del movimiento corresponda exactamente a una de las producciones gramaticales especificadas.
 
 
 
