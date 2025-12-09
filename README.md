@@ -88,9 +88,9 @@ El analisis lexico es sencillo, ya que la notación SAN es muy especifica y limi
 
 
 
-## Ánalisis sintactico
+## Ánalisis sintactico,formemos una gramatica para validar la sintaxis.
 
-# Formemos la gramatica 
+
 
 
 ## Definición del Lenguaje
