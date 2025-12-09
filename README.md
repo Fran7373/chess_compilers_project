@@ -9,6 +9,10 @@ El objetivo del proyecto es construir una aplicación con el lenguaje C/C++, el 
 - Produce un nuevo estado de tablero válido.
 
 
+##Escritura SAN
+
+## Ánalsis Lexico
+
 
 
 
