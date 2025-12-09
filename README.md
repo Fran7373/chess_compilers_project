@@ -92,13 +92,19 @@ El analisis lexico es sencillo, ya que la notación SAN es muy especifica y limi
 
 #Formemos la gramatica 
 
+# Parser de Movimientos de Ajedrez
+
+## Gramática Formal (Notación Algebraica Estándar)
+
+### Definición del Lenguaje
+
 Sea $L$ el lenguaje de movimientos de ajedrez válidos en notación algebraica estándar (SAN):
 
 $$L = L_{\text{enroque}} \cup L_{\text{movimiento}}$$
 
 ### Alfabeto
 
-$$\Sigma = \{K, Q, R, B, N, a, b, c, d, e, f, g, h, 1, 2, 3, 4, 5, 6, 7, 8, x, =, +, \#\, O, 0, -\}$$
+$$\Sigma = \{K, Q, R, B, N, a, b, c, d, e, f, g, h, 1, 2, 3, 4, 5, 6, 7, 8, x, =, +, \#, O, 0, -\}$$
 
 Donde:
 - $P = \{K, Q, R, B, N\}$ es el conjunto de piezas
@@ -110,7 +116,7 @@ Donde:
 
 $$L_{\text{enroque}} = \{O\text{-}O\text{-}O, 0\text{-}0\text{-}0, O\text{-}O, 0\text{-}0\} \times A$$
 
-donde $A = \{\epsilon, +, \#\}$ son anotaciones opcionales.
+donde $A = \{\epsilon, +, \\#\}$ son anotaciones opcionales.
 
 ### Movimientos Normales
 
@@ -140,7 +146,7 @@ $$M = \{\epsilon\} \cup (\{=\} \times P_p)$$
 
 **Anotación:**
 
-$$A = \{\epsilon, +, \#\}$$
+$A = \{\epsilon, +, \\#\}$
 
 ### Gramática BNF
 
@@ -177,7 +183,7 @@ $$A = \{\epsilon, +, \#\}$$
 | `e4` | $\epsilon \times \epsilon \times \epsilon \times (e, 4) \times \epsilon \times \epsilon$ |
 | `Nf3` | $N \times \epsilon \times \epsilon \times (f, 3) \times \epsilon \times \epsilon$ |
 | `Qh4xe1` | $Q \times (h, 4) \times x \times (e, 1) \times \epsilon \times \epsilon$ |
-| `e8=Q#` | $\epsilon \times \epsilon \times \epsilon \times (e, 8) \times (=Q) \times \#$ |
+| `e8=Q#` | $\epsilon \times \epsilon \times \epsilon \times (e, 8) \times (=Q) \times \\#$ |
 | `O-O-O` | $\in L_{\text{enroque}}$ |
 | `Raxb1` | $R \times a \times \epsilon \times x \times (b, 1) \times \epsilon \times \epsilon$ |
 | `N5xd4` | $N \times 5 \times x \times (d, 4) \times \epsilon \times \epsilon$ |
@@ -211,9 +217,7 @@ if (parse_move(&tokens, &move) == 0) {
 }
 ```
 
-## Licencia
 
-[Tu licencia aquí]
 
 
 
