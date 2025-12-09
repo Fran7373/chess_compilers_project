@@ -104,7 +104,7 @@ $$L = L_{\text{enroque}} \cup L_{\text{movimiento}}$$
 
 ### Alfabeto
 
-$$\Sigma = \{K, Q, R, B, N, a, b, c, d, e, f, g, h, 1, 2, 3, 4, 5, 6, 7, 8, x, =, +, \#, O, 0, -\}$$
+$$\Sigma = \{K, Q, R, B, N, a, b, c, d, e, f, g, h, 1, 2, 3, 4, 5, 6, 7, 8, x, =, +, \\#\ , O, 0, -\}$$
 
 Donde:
 - $P = \{K, Q, R, B, N\}$ es el conjunto de piezas
