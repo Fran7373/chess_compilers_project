@@ -84,6 +84,8 @@ TK_CASTLE_LONG // Enroque largo: 0-0 o O-O-O
 TK_END //Siempre se termina en este token
 ```
 
+El analisis lexico es sencillo, ya que la notación SAN es muy especifica y limitada dentro del ajedrez. Sin embargo tenemos que asegurarnos de buscar el match más largo para la deteción de enroques, ya que de lo contrario la cadena 0-0-0 podría ser idientificada como `TK_CASTLE_SHORT:"0-0"`,`TK_UNKNOWN:"-"` y `TK_UNKNOWN:"0"`, cuando la tokenización correcta es `TK_CASTLE_LONG :"0-0-0"`
+
 
 
 
