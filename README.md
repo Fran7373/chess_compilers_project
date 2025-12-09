@@ -26,7 +26,7 @@ Es la notación oficial utilizada en torneos.
 ---
 
 ### Identificación de piezas
-En español, las piezas se representan con letras mayúsculas:
+En ingles, las piezas se representan con letras mayúsculas:
 
 - **K** → Rey  
 - **Q** → Dama  
@@ -43,7 +43,7 @@ En español, las piezas se representan con letras mayúsculas:
 - **Piezas (excepto peones):**
   - Letra de la pieza + casilla de destino.  
   - Ejemplos:  
-    - `kg5` → un caballo va a g5  
+    - `Kg5` → un caballo va a g5  
     - `Qd4` → la dama va a d4  
 
 - **Peones:**
