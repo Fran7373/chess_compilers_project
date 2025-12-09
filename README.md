@@ -28,11 +28,11 @@ Es la notación oficial utilizada en torneos.
 ### Identificación de piezas
 En español, las piezas se representan con letras mayúsculas:
 
-- **R** → Rey  
-- **D** → Dama  
-- **T** → Torre  
-- **A** → Alfil  
-- **C** → Caballo  
+- **K** → Rey  
+- **Q** → Dama  
+- **R** → Torre  
+- **B** → Alfil  
+- **N** → Caballo  
 - **(sin letra)** → Peón  
 
 > Los peones no llevan letra; su movimiento se indica solo con la casilla de destino.
@@ -43,8 +43,8 @@ En español, las piezas se representan con letras mayúsculas:
 - **Piezas (excepto peones):**
   - Letra de la pieza + casilla de destino.  
   - Ejemplos:  
-    - `Cg5` → un caballo va a g5  
-    - `Dd4` → la dama va a d4  
+    - `kg5` → un caballo va a g5  
+    - `Qd4` → la dama va a d4  
 
 - **Peones:**
   - Solo casilla de destino.  
@@ -62,6 +62,57 @@ En español, las piezas se representan con letras mayúsculas:
 
 
 SISTEMA AMIGABLE CON EL USUSARIO Y OFRECE UNA METODOLOGIA ESPECIALIZZADA Y DIRECTA.
+
+
+
+
+## ¿Qué es PGN en ajedrez?
+
+**PGN** (*Portable Game Notation*) es el formato estándar para almacenar y compartir partidas de ajedrez en archivos de texto simples.  
+Fue creado por Steven J. Edwards y es compatible con prácticamente todos los programas y bases de datos de ajedrez.
+
+A diferencia del formato **FEN**, que describe una única posición, **PGN registra la partida completa**, incluyendo todos los movimientos y metadatos relevantes.
+
+---
+
+### ¿Qué contiene un archivo PGN?
+
+Un archivo PGN se divide en **dos secciones**:
+
+---
+
+#### **Sección de etiquetas (Metadata)**  
+Contiene información adicional sobre la partida en formato `[Clave "Valor"]`.  
+Ejemplos comunes:
+
+- **Evento** → Nombre del torneo  
+- **Sitio** → Lugar donde se jugó  
+- **Fecha** → Fecha del encuentro  
+- **Ronda** → Ronda del torneo  
+- **White** → Jugador de piezas blancas  
+- **Black** → Jugador de piezas negras  
+- **Result** → Resultado (`1-0`, `0-1`, `1/2-1/2`)
+
+---
+
+#### **Sección de movimientos**
+Lista de movimientos escritos en **SAN (Standard Algebraic Notation)**.  
+Ejemplo:
+
+e4 e5
+
+Nf3 Nc6
+
+Bb5 a6
+
+
+### Ventajas del formato PGN
+
+- Fácil de leer por humanos y computadoras.  
+- Permite cargar partidas completas en segundos.  
+- Útil para análisis, estudios, comentarios y bases de datos.  
+- Estándar ampliamente aceptado en herramientas y motores de ajedrez.  
+
 
 
 ## Ánalsis lexico
@@ -210,6 +261,15 @@ Esto es lo que validamos en el análisis sintáctico: verificamos que cada movim
 
 ##  Cómo compilar
 
-```bash
-make
-./chess
+Para una correcta visualización de caracteres en **Windows**, ejecute:
+
+    ```powershell
+    $OutputEncoding = [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding```
+
+Para compilar el proyecto:
+
+    gcc -o chess main.c interactivo.c pgn.c lexer.c parser.c semant.c -Wall
+
+Para ejecutar el programa:
+
+    ./chess
