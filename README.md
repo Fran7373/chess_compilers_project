@@ -93,7 +93,7 @@ El analisis lexico es sencillo, ya que la notación SAN es muy especifica y limi
 # Formemos la gramatica 
 
 
-### Definición del Lenguaje
+## Definición del Lenguaje
 
 Sea $L$ el lenguaje de movimientos de ajedrez válidos en notación algebraica estándar (SAN):
 
