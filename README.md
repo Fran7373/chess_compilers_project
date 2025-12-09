@@ -1,4 +1,5 @@
-# Proyecto Chess Compiler
+# Proyecto Chess Compiler.
+
 
 El objetivo del proyecto es construir una aplicación con el lenguaje C/C++, el cual sea un analizador léxico, sintáctico y semántico que valide los movimientos de la notación algebraica del ajedrez y determine si el movimiento es:
 
@@ -8,10 +9,60 @@ El objetivo del proyecto es construir una aplicación con el lenguaje C/C++, el 
 - Respeta las reglas oficiales del ajedrez.  
 - Produce un nuevo estado de tablero válido.
 
+# Conceptos clave para el razonamiento de Chess Compiler
+# SAN  (Standard Algebraic Notation) o Notacion Algebraica Estandar en español
 
-## Escritura SAN
+La **notación algebraica** es el sistema estándar para registrar partidas de ajedrez.  
+Asigna un nombre único a cada casilla del tablero y permite describir cada movimiento de forma precisa y universal.  
+Es la notación oficial utilizada en torneos.
 
-Que es la escritura SAN?
+---
+
+### Estructura del tablero
+- El tablero tiene **8 columnas (a–h)** y **8 filas (1–8)**.  
+- Cada casilla se identifica con una combinación letra+número:  
+  - Ejemplos: `a1`, `e4`, `h8`.
+
+---
+
+### Identificación de piezas
+En español, las piezas se representan con letras mayúsculas:
+
+- **R** → Rey  
+- **D** → Dama  
+- **T** → Torre  
+- **A** → Alfil  
+- **C** → Caballo  
+- **(sin letra)** → Peón  
+
+> Los peones no llevan letra; su movimiento se indica solo con la casilla de destino.
+
+---
+
+### Cómo se escriben los movimientos
+- **Piezas (excepto peones):**
+  - Letra de la pieza + casilla de destino.  
+  - Ejemplos:  
+    - `Cg5` → un caballo va a g5  
+    - `Dd4` → la dama va a d4  
+
+- **Peones:**
+  - Solo casilla de destino.  
+  - Ejemplo: `e5` → un peón avanza a e5  
+
+---
+
+### Ventajas
+- Registro claro y universal de movimientos.  
+- Fácil de leer, escribir y analizar.  
+- Obligatoria en torneos oficiales.
+
+
+
+
+
+SISTEMA AMIGABLE CON EL USUSARIO Y OFRECE UNA METODOLOGIA ESPECIALIZZADA Y DIRECTA.
+
 
 ## Ánalsis Lexico
 
