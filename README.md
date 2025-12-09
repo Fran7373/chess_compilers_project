@@ -395,7 +395,6 @@ Para ejecutar el programa:
 
 - **Parte V: Análisis Semántico**  
   “22. Introduction to Semantic Analysis”  
-  “23. Static vs Dynamic Typing / SELF_TYPE”  
   Curso de Compiladores — Universidad Nacional de Colombia, 2025-2.
 
 - **Imagen "Maravillosa jugada"**
